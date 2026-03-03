@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <title>RKL Check</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Экран 1: Заглушка лицензии (MVP) -->
+  <div id="screen-license" class="screen">
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+        </span>
+        RKL Check
+      </div>
+    </div>
+    <div class="card">
+      <p class="subtitle" style="margin-bottom: 8px;">Проверка по реестру контролируемых лиц</p>
+      <p class="text-muted">MVP-режим: лицензирование отключено</p>
+      <button id="btn-skip-license" class="btn btn-primary btn-block">Продолжить</button>
+    </div>
+  </div>
+
+  <!-- Экран 2: Главный (загрузка файла) -->
+  <div id="screen-main" class="screen hidden">
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+        </span>
+        RKL Check
+      </div>
+      <div class="info-bar">
+        <span class="badge badge-green">MVP</span>
+      </div>
+    </div>
+
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-zone__icon">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+      </div>
+      <div class="drop-zone__text">Перетащите Excel-файл<br>или нажмите для выбора</div>
+      <div class="drop-zone__hint">.xlsx, .xls</div>
+      <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
+    </div>
+
+    <button id="btn-open-gosuslugi" class="btn btn-outline btn-block">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Открыть Госуслуги
+    </button>
+  </div>
+
+  <!-- Экран 3: Предпросмотр -->
+  <div id="screen-preview" class="screen hidden">
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+        </span>
+        RKL Check
+      </div>
+    </div>
+
+    <div class="info-line">
+      <span>Загружено: <strong id="preview-count">0</strong> сотрудников</span>
+    </div>
+
+    <div id="validation-errors" class="alert alert-warning hidden"></div>
+
+    <div class="table-wrapper">
+      <table id="preview-table" class="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>ФИО</th>
+            <th>Номер</th>
+            <th>Дата выдачи</th>
+            <th>ДР</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="preview-more" class="text-muted text-sm text-center hidden"></div>
+
+    <div class="actions">
+      <button id="btn-start-check" class="btn btn-success btn-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Начать проверку
+      </button>
+      <button id="btn-cancel-preview" class="btn btn-ghost btn-block">Отменить</button>
+    </div>
+  </div>
+
+  <!-- Экран 4: Процесс проверки -->
+  <div id="screen-progress" class="screen hidden">
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+        </span>
+        RKL Check
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-bar__fill" style="width: 0%"></div>
+      </div>
+      <div class="progress-text">
+        Проверено: <strong id="progress-current">0</strong> из <strong id="progress-total">0</strong>
+      </div>
+    </div>
+
+    <div id="progress-current-employee" class="text-muted text-sm"></div>
+
+    <div class="stats-grid">
+      <div class="stat stat-ok">
+        <div class="stat__value" id="stat-ok">0</div>
+        <div class="stat__label">Не найдено</div>
+      </div>
+      <div class="stat stat-found">
+        <div class="stat__value" id="stat-found">0</div>
+        <div class="stat__label">В РКЛ</div>
+      </div>
+      <div class="stat stat-error">
+        <div class="stat__value" id="stat-error">0</div>
+        <div class="stat__label">Ошибки</div>
+      </div>
+    </div>
+
+    <div id="progress-eta" class="text-muted text-sm text-center"></div>
+
+    <div class="actions">
+      <button id="btn-pause" class="btn btn-outline btn-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Пауза
+      </button>
+      <button id="btn-resume" class="btn btn-primary btn-block hidden">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Продолжить
+      </button>
+      <button id="btn-stop" class="btn btn-danger btn-block">Остановить</button>
+    </div>
+  </div>
+
+  <!-- Экран 5: Результаты -->
+  <div id="screen-results" class="screen hidden">
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+        </span>
+        RKL Check
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="summary__title">Проверка завершена</div>
+      <div class="stats-grid stats-grid--4">
+        <div class="stat stat-total">
+          <div class="stat__value" id="result-total">0</div>
+          <div class="stat__label">Всего</div>
+        </div>
+        <div class="stat stat-ok">
+          <div class="stat__value" id="result-ok">0</div>
+          <div class="stat__label">Не найдено</div>
+        </div>
+        <div class="stat stat-found">
+          <div class="stat__value" id="result-found">0</div>
+          <div class="stat__label">В РКЛ</div>
+        </div>
+        <div class="stat stat-error">
+          <div class="stat__value" id="result-errors">0</div>
+          <div class="stat__label">Ошибки</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="all">Все</button>
+      <button class="filter-tab" data-filter="found">Найденные</button>
+      <button class="filter-tab" data-filter="error">Ошибки</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="results-table" class="table">
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>Документ</th>
+            <th>Статус</th>
+            <th>Время</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button id="btn-export" class="btn btn-primary btn-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Скачать отчёт (Excel)
+      </button>
+      <button id="btn-retry-errors" class="btn btn-outline btn-block hidden">Повторить ошибочные</button>
+      <button id="btn-new-check" class="btn btn-ghost btn-block">Новая проверка</button>
+    </div>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>
