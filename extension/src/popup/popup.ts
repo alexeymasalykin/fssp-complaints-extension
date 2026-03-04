@@ -20,7 +20,6 @@ const screens = {
 
 // === Состояние popup ===
 
-let currentFilter: 'all' | 'found' | 'error' = 'all';
 let parsedEmployees: Employee[] = [];
 let lastStatus: StatusUpdateMessage | null = null;
 let port: chrome.runtime.Port | null = null;
@@ -110,6 +109,7 @@ function bindEvents(): void {
   $('btn-stop').addEventListener('click', stopCheck);
 
   // Результаты
+  $('btn-open-results').addEventListener('click', openResultsPage);
   $('btn-export').addEventListener('click', exportResults);
   $('btn-retry-errors').addEventListener('click', retryErrors);
   $('btn-new-check').addEventListener('click', newCheck);
@@ -129,17 +129,9 @@ function bindEvents(): void {
   $('setting-delay').addEventListener('input', () => {
     const val = Number(($('setting-delay') as HTMLInputElement).value);
     $('delay-value-hint').textContent = `${(val / 1000).toFixed(1)} сек`;
+    $('delay-warning').style.display = val < 10000 ? '' : 'none';
   });
 
-  // Фильтры
-  document.querySelectorAll<HTMLButtonElement>('.filter-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.filter-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      currentFilter = (tab.dataset.filter ?? 'all') as typeof currentFilter;
-      renderResultsTable();
-    });
-  });
 }
 
 // === Переключение экранов ===
@@ -275,7 +267,17 @@ async function startCheck(): Promise<void> {
       alert('Исчерпан лимит проверок на этот месяц. Обновите тариф.');
       return;
     }
-    alert(`Ошибка запуска: ${startResult?.error ?? 'неизвестная ошибка'}`);
+    if (startResult?.error === 'no_valid_employees') {
+      alert('Нет строк для проверки — у всех сотрудников отсутствуют обязательные данные (номер, дата выдачи или дата рождения).');
+      showScreen('results');
+      return;
+    }
+    const err = startResult?.error ?? 'неизвестная ошибка';
+    if (/content script|not responding|connection/i.test(err)) {
+      alert('Не удалось подключиться к странице Госуслуг. Обновите вкладку (F5) и попробуйте снова.');
+    } else {
+      alert(`Ошибка запуска: ${err}`);
+    }
     return;
   }
 
@@ -374,50 +376,6 @@ function updateResults(status: StatusLike): void {
   $('result-found').textContent = String(stats.found);
   $('result-errors').textContent = String(stats.error);
   $('btn-retry-errors').classList.toggle('hidden', stats.error === 0);
-
-  renderResultsTable();
-}
-
-function renderResultsTable(): void {
-  if (!lastStatus) return;
-  const { results, employees } = lastStatus;
-  const tbody = $('results-table').querySelector('tbody')!;
-  tbody.innerHTML = '';
-
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    const emp = employees[i];
-
-    if (currentFilter === 'found' && r.status !== 'found') continue;
-    if (currentFilter === 'error' && r.status !== 'error') continue;
-
-    const rowClass =
-      r.status === 'not_found' ? 'row-ok' :
-      r.status === 'found' ? 'row-found' :
-      r.status === 'error' ? 'row-error' : '';
-
-    const statusText =
-      r.status === 'not_found' ? 'Не найден' :
-      r.status === 'found' ? 'НАЙДЕН В РКЛ' :
-      r.status === 'error' ? 'Ошибка' : '—';
-
-    const statusClass =
-      r.status === 'not_found' ? 'status-ok' :
-      r.status === 'found' ? 'status-found' :
-      r.status === 'error' ? 'status-error' : 'status-pending';
-
-    const doc = `${emp?.series ? `${emp.series} ` : ''}${emp?.number ?? ''}`;
-
-    const tr = document.createElement('tr');
-    tr.className = rowClass;
-    tr.innerHTML = `
-      <td title="${esc(emp?.name ?? '')}">${esc(truncate(emp?.name ?? '—', 14))}</td>
-      <td>${esc(doc)}</td>
-      <td class="${statusClass}">${statusText}</td>
-      <td>${esc(formatTimestamp(r.timestamp))}</td>
-    `;
-    tbody.appendChild(tr);
-  }
 }
 
 // === Экспорт ===
@@ -446,6 +404,7 @@ async function openSettings(): Promise<void> {
     ($('setting-download-folder') as HTMLInputElement).value = s.downloadSubfolder;
     ($('setting-delay') as HTMLInputElement).value = String(s.delayBetweenChecks);
     $('delay-value-hint').textContent = `${(s.delayBetweenChecks / 1000).toFixed(1)} сек`;
+    $('delay-warning').style.display = s.delayBetweenChecks < 10000 ? '' : 'none';
     $('setting-folder-row').classList.toggle('hidden', !s.autoDownload);
   }
 
@@ -561,6 +520,10 @@ function updateLicenseUI(license: LicenseInfo): void {
 
 // === Навигация ===
 
+function openResultsPage(): void {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/results/result.html') });
+}
+
 function openGosuslugi(): void {
   chrome.tabs.create({ url: 'https://www.gosuslugi.ru/655781/1/form' });
 }
@@ -592,23 +555,6 @@ function formatDuration(ms: number): string {
   const min = Math.floor(sec / 60);
   const rem = sec % 60;
   return rem > 0 ? `${min} мин ${rem} сек` : `${min} мин`;
-}
-
-function formatTimestamp(ts: string | null): string {
-  if (!ts) return '';
-  if (ts.includes('МСК')) {
-    const match = ts.match(/(\d{2}:\d{2})/);
-    return match ? match[1] : ts;
-  }
-  try {
-    return new Date(ts).toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Europe/Moscow',
-    });
-  } catch {
-    return ts;
-  }
 }
 
 function truncate(str: string, maxLen: number): string {

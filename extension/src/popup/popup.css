@@ -630,6 +630,13 @@ body::after {
   margin-top: 2px;
 }
 
+.settings-item__warning {
+  font-size: 11px;
+  color: #D97706;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
 /* Toggle switch */
 .toggle {
   position: relative;

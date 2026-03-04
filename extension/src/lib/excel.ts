@@ -109,23 +109,29 @@ function formatDate(date: Date): string {
 
 export function validateEmployees(employees: Employee[]): string[] {
   const errors: string[] = [];
-  let emptyNumbers = 0;
-  let emptyIssueDates = 0;
-  let emptyBirthDates = 0;
-  let badDates = 0;
+  const emptyNumbers: number[] = [];
+  const emptyIssueDates: number[] = [];
+  const emptyBirthDates: number[] = [];
+  const badDates: number[] = [];
 
-  for (const emp of employees) {
-    if (!emp.number) emptyNumbers++;
-    if (!emp.issueDate) emptyIssueDates++;
-    if (!emp.birthDate) emptyBirthDates++;
-    if (emp.issueDate && !/^\d{2}\.\d{2}\.\d{4}$/.test(emp.issueDate)) badDates++;
-    if (emp.birthDate && !/^\d{2}\.\d{2}\.\d{4}$/.test(emp.birthDate)) badDates++;
+  for (let i = 0; i < employees.length; i++) {
+    const emp = employees[i];
+    const row = i + 1; // 1-based row number for user display
+    if (!emp.number) emptyNumbers.push(row);
+    if (!emp.issueDate) emptyIssueDates.push(row);
+    if (!emp.birthDate) emptyBirthDates.push(row);
+    if (emp.issueDate && !/^\d{2}\.\d{2}\.\d{4}$/.test(emp.issueDate)) badDates.push(row);
+    if (emp.birthDate && !/^\d{2}\.\d{2}\.\d{4}$/.test(emp.birthDate)) badDates.push(row);
   }
 
-  if (emptyNumbers) errors.push(`Пустой номер: ${emptyNumbers} строк`);
-  if (emptyIssueDates) errors.push(`Пустая дата выдачи: ${emptyIssueDates} строк`);
-  if (emptyBirthDates) errors.push(`Пустая дата рождения: ${emptyBirthDates} строк`);
-  if (badDates) errors.push(`Некорректный формат даты: ${badDates} (ожидается ДД.ММ.ГГГГ)`);
+  const fmt = (rows: number[]) => rows.length <= 5
+    ? rows.join(', ')
+    : `${rows.slice(0, 5).join(', ')} и ещё ${rows.length - 5}`;
+
+  if (emptyNumbers.length) errors.push(`Нет номера документа: строки ${fmt(emptyNumbers)}`);
+  if (emptyIssueDates.length) errors.push(`Нет даты выдачи: строки ${fmt(emptyIssueDates)}`);
+  if (emptyBirthDates.length) errors.push(`Нет даты рождения: строки ${fmt(emptyBirthDates)}`);
+  if (badDates.length) errors.push(`Некорректная дата (нужен ДД.ММ.ГГГГ): строки ${fmt(badDates)}`);
 
   return errors;
 }

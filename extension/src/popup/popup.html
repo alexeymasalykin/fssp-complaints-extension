@@ -200,28 +200,12 @@
       </div>
     </div>
 
-    <div class="filter-tabs">
-      <button class="filter-tab active" data-filter="all">Все</button>
-      <button class="filter-tab" data-filter="found">Найденные</button>
-      <button class="filter-tab" data-filter="error">Ошибки</button>
-    </div>
-
-    <div class="table-wrapper">
-      <table id="results-table" class="table">
-        <thead>
-          <tr>
-            <th>ФИО</th>
-            <th>Документ</th>
-            <th>Статус</th>
-            <th>Время</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
     <div class="actions">
-      <button id="btn-export" class="btn btn-primary btn-block">
+      <button id="btn-open-results" class="btn btn-primary btn-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Открыть полные результаты
+      </button>
+      <button id="btn-export" class="btn btn-outline btn-block">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Скачать отчёт (Excel)
       </button>
@@ -279,9 +263,10 @@
       <div class="settings-item">
         <div class="settings-item__info">
           <div class="settings-item__label">Задержка между проверками</div>
-          <div class="settings-item__desc" id="delay-value-hint">4.0 сек</div>
+          <div class="settings-item__desc" id="delay-value-hint">10.0 сек</div>
+          <div class="settings-item__warning" id="delay-warning" style="display:none;">При значении менее 10 сек Госуслуги могут ограничить частоту запросов</div>
         </div>
-        <input type="range" id="setting-delay" class="settings-range" min="2000" max="10000" step="500">
+        <input type="range" id="setting-delay" class="settings-range" min="2000" max="15000" step="500" value="10000">
       </div>
     </div>
 

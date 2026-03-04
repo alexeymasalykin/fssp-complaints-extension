@@ -49,7 +49,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  delayBetweenChecks: 4000,
+  delayBetweenChecks: 10000,
   resultTimeout: 120000,
   stepTimeout: 10000,
   maxRetries: 3,
@@ -114,7 +114,7 @@ export interface LicenseErrorResponse {
 
 // === Шаги формы Госуслуг ===
 
-export type GosuslugiStep = 'intro' | 'document' | 'birthdate' | 'result' | 'unknown';
+export type GosuslugiStep = 'intro' | 'document' | 'birthdate' | 'result' | 'rate_limited' | 'unknown';
 
 // === Статистика результатов ===
 

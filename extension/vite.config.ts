@@ -32,5 +32,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        results: resolve(__dirname, 'src/results/result.html'),
+      },
+    },
   },
 });

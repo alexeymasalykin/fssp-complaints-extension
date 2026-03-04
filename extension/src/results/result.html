@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Результаты проверки — RKL Check</title>
+  <link rel="stylesheet" href="result.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header__left">
+      <svg class="header__logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <div>
+        <h1 class="header__title">Результаты проверки сотрудников</h1>
+        <p class="header__subtitle" id="check-date"></p>
+      </div>
+    </div>
+    <div class="header__brand">RKL Check</div>
+  </header>
+
+  <!-- Summary cards -->
+  <section class="summary" id="summary">
+    <div class="summary-card summary-card--total">
+      <div class="summary-card__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="summary-card__data">
+        <span class="summary-card__value" id="stat-total">0</span>
+        <span class="summary-card__label">Всего проверено</span>
+      </div>
+    </div>
+
+    <div class="summary-card summary-card--ok">
+      <div class="summary-card__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <div class="summary-card__data">
+        <span class="summary-card__value" id="stat-ok">0</span>
+        <span class="summary-card__label">Отсутствует в реестре</span>
+      </div>
+    </div>
+
+    <div class="summary-card summary-card--found">
+      <div class="summary-card__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+          <path d="M12 9v4"/>
+          <path d="M12 17h.01"/>
+        </svg>
+      </div>
+      <div class="summary-card__data">
+        <span class="summary-card__value" id="stat-found">0</span>
+        <span class="summary-card__label">Есть в реестре</span>
+      </div>
+    </div>
+
+    <div class="summary-card summary-card--error">
+      <div class="summary-card__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="m15 9-6 6"/>
+          <path d="m9 9 6 6"/>
+        </svg>
+      </div>
+      <div class="summary-card__data">
+        <span class="summary-card__value" id="stat-error">0</span>
+        <span class="summary-card__label">Ошибки</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Toolbar: search + filters + actions -->
+  <section class="toolbar">
+    <div class="toolbar__left">
+      <div class="search-box">
+        <svg class="search-box__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        <input type="text" class="search-box__input" id="search-input" placeholder="Поиск по ФИО или номеру...">
+      </div>
+
+      <div class="filter-tabs" id="filter-tabs">
+        <button class="filter-tab active" data-filter="all">Все <span class="filter-tab__count" id="count-all">0</span></button>
+        <button class="filter-tab" data-filter="not_found">Отсутствует в реестре <span class="filter-tab__count" id="count-ok">0</span></button>
+        <button class="filter-tab" data-filter="found">Есть в реестре <span class="filter-tab__count" id="count-found">0</span></button>
+        <button class="filter-tab" data-filter="no_data">Недостаточно данных <span class="filter-tab__count" id="count-nodata">0</span></button>
+        <button class="filter-tab" data-filter="error">Ошибка <span class="filter-tab__count" id="count-error">0</span></button>
+      </div>
+    </div>
+
+    <div class="toolbar__actions">
+      <button class="btn btn--primary" id="btn-export">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Скачать результаты в Excel
+      </button>
+      <button class="btn btn--outline-danger" id="btn-clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/>
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/>
+          <line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+        Очистить список
+      </button>
+    </div>
+  </section>
+
+  <!-- Data table -->
+  <section class="table-section">
+    <div class="table-wrapper">
+      <table class="data-table" id="data-table">
+        <thead>
+          <tr>
+            <th class="col-num" data-sort="index">№</th>
+            <th class="col-name sortable" data-sort="name">ФИО</th>
+            <th class="col-series" data-sort="series">Серия</th>
+            <th class="col-number" data-sort="number">Номер</th>
+            <th class="col-issue" data-sort="issueDate">Дата выдачи</th>
+            <th class="col-birth" data-sort="birthDate">Дата рождения</th>
+            <th class="col-status sortable" data-sort="status">Статус</th>
+            <th class="col-time sortable" data-sort="timestamp">Время</th>
+            <th class="col-comment">Комментарий</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Empty state -->
+  <div class="empty-state hidden" id="empty-state">
+    <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <h2 class="empty-state__title">Нет результатов проверки</h2>
+    <p class="empty-state__text">Загрузите файл с данными сотрудников и запустите проверку через расширение</p>
+  </div>
+
+  <script type="module" src="result.ts"></script>
+</body>
+</html>

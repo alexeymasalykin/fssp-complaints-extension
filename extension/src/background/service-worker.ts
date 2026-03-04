@@ -54,6 +54,17 @@ let gosuslugiTabId: number | null = null;
 let popupPorts: chrome.runtime.Port[] = [];
 let processingLock = false;
 
+// === Helpers ===
+
+function showNotification(title: string, message: string): void {
+  chrome.notifications.create({
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('src/icons/icon128.png'),
+    title,
+    message,
+  });
+}
+
 // === Init ===
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -87,6 +98,11 @@ async function restoreState(): Promise<void> {
     }
     if (data.settings) {
       settings = { ...DEFAULT_SETTINGS, ...data.settings };
+      // Migrate: old default was 4000ms, new recommended minimum is 10000ms
+      if (settings.delayBetweenChecks < DEFAULT_SETTINGS.delayBetweenChecks) {
+        settings.delayBetweenChecks = DEFAULT_SETTINGS.delayBetweenChecks;
+        await chrome.storage.local.set({ settings });
+      }
     }
     // Restore cached license
     cachedLicense = await getCachedLicense();
@@ -241,13 +257,25 @@ async function handleMessage(
 function loadEmployees(employees: Employee[]): BaseResponse {
   queue.employees = employees;
   queue.currentIndex = 0;
-  queue.results = employees.map((): CheckResult => ({
-    status: 'pending',
-    found: null,
-    timestamp: null,
-    source: null,
-    error: null,
-  }));
+  queue.results = employees.map((emp): CheckResult => {
+    // Pre-validate required fields — mark invalid rows as error immediately
+    const missing: string[] = [];
+    if (!emp.number?.trim()) missing.push('Номер документа');
+    if (!emp.issueDate?.trim()) missing.push('Дата выдачи');
+    if (!emp.birthDate?.trim()) missing.push('Дата рождения');
+
+    if (missing.length) {
+      return {
+        status: 'error',
+        found: null,
+        timestamp: new Date().toISOString(),
+        source: null,
+        error: `Недостаточно данных: отсутствует ${missing.join(', ')}`,
+      };
+    }
+
+    return { status: 'pending', found: null, timestamp: null, source: null, error: null };
+  });
   queue.state = 'ready';
   queue.startedAt = null;
   queue.pausedAt = null;
@@ -271,6 +299,15 @@ async function startCheck(tabId: number): Promise<BaseResponse> {
   }
   if (!checkLimit(cachedLicense)) {
     return { ok: false, error: 'limit_exceeded' };
+  }
+
+  // Check if there are any pending employees to process
+  const hasPending = queue.results.some(r => r.status === 'pending');
+  if (!hasPending) {
+    queue.state = 'completed';
+    await saveQueue();
+    notifyPopup();
+    return { ok: false, error: 'no_valid_employees' };
   }
 
   gosuslugiTabId = tabId;
@@ -542,6 +579,10 @@ async function checkOneEmployee(employee: Employee): Promise<CheckResult> {
         const stepResp = await sendToContent<StepResponse>({ type: 'GET_CURRENT_STEP' }, settings.stepTimeout);
         const currentStep = stepResp.step as GosuslugiStep;
 
+        if (currentStep === 'rate_limited') {
+          throw new Error('RATE_LIMITED');
+        }
+
         if (currentStep === 'intro') {
           await clickButtonInPage(gosuslugiTabId!, 'Начать');
           await sleep(2000);
@@ -595,9 +636,24 @@ async function checkOneEmployee(employee: Employee): Promise<CheckResult> {
       throw new Error('Too many step iterations without reaching result');
 
     } catch (err) {
-      retries++;
       const errMsg = err instanceof Error ? err.message : String(err);
-      // Retry logic — silent unless max retries reached
+
+      // Rate limit — stop completely, employee stays pending
+      if (errMsg === 'RATE_LIMITED') {
+        queue.state = 'idle';
+        await saveQueue();
+        notifyPopup();
+
+        showNotification(
+          'Проверка остановлена',
+          'Госуслуги ограничили частоту запросов. Увеличьте задержку между проверками до рекомендуемых 10 сек и запустите проверку заново.'
+        );
+
+        // Return pending — employee not checked, will be retried on next run
+        return { status: 'pending', found: null, timestamp: null, source: null, error: null };
+      }
+
+      retries++;
 
       if (retries >= settings.maxRetries) {
         errorResult.error = errMsg;
@@ -620,6 +676,7 @@ async function waitForAnyFormStep(): Promise<GosuslugiStep> {
     if (queue.state !== 'running') throw new Error('Check stopped');
 
     const resp = await sendToContent<StepResponse>({ type: 'GET_CURRENT_STEP' }, 3000);
+    if (resp.step === 'rate_limited') throw new Error('RATE_LIMITED');
     if (resp.step && resp.step !== 'unknown' && resp.step !== 'intro') {
       return resp.step as GosuslugiStep;
     }
@@ -631,14 +688,44 @@ async function waitForAnyFormStep(): Promise<GosuslugiStep> {
 }
 
 // Wait for step to change from currentStep to anything else (page transition)
+// Phase 1: quick check (stepTimeout) — if step hasn't changed at all, it's a form validation error
+// Phase 2: long wait (resultTimeout) — for МВД response during loading
 async function waitForStepChange(fromStep: GosuslugiStep): Promise<GosuslugiStep> {
-  const timeout = settings.resultTimeout; // longer timeout for result page
   const startTime = Date.now();
+  let sawLoading = false;
 
-  while (Date.now() - startTime < timeout) {
+  // Phase 1: wait up to stepTimeout for ANY change (including 'unknown'/loading)
+  while (Date.now() - startTime < settings.stepTimeout) {
     if (queue.state !== 'running') throw new Error('Check stopped');
 
     const resp = await sendToContent<StepResponse>({ type: 'GET_CURRENT_STEP' }, 3000);
+    if (resp.step === 'rate_limited') throw new Error('RATE_LIMITED');
+
+    if (resp.step === 'unknown') {
+      sawLoading = true; // page is transitioning
+    }
+
+    if (resp.step && resp.step !== fromStep && resp.step !== 'unknown') {
+      return resp.step as GosuslugiStep;
+    }
+
+    // If page started loading, move to Phase 2
+    if (sawLoading) break;
+
+    await sleep(1000);
+  }
+
+  // If step never changed from form step and no loading seen — form validation error
+  if (!sawLoading) {
+    throw new Error(`Форма не прошла валидацию на шаге "${fromStep}". Проверьте данные сотрудника.`);
+  }
+
+  // Phase 2: page is loading (МВД query), wait longer
+  while (Date.now() - startTime < settings.resultTimeout) {
+    if (queue.state !== 'running') throw new Error('Check stopped');
+
+    const resp = await sendToContent<StepResponse>({ type: 'GET_CURRENT_STEP' }, 3000);
+    if (resp.step === 'rate_limited') throw new Error('RATE_LIMITED');
     if (resp.step && resp.step !== fromStep && resp.step !== 'unknown') {
       return resp.step as GosuslugiStep;
     }
@@ -646,7 +733,7 @@ async function waitForStepChange(fromStep: GosuslugiStep): Promise<GosuslugiStep
     await sleep(1000);
   }
 
-  throw new Error(`Timeout waiting for step change from "${fromStep}" (${timeout}ms)`);
+  throw new Error(`Timeout waiting for step change from "${fromStep}" (${settings.resultTimeout}ms)`);
 }
 
 // === DOM manipulation via MAIN world ===

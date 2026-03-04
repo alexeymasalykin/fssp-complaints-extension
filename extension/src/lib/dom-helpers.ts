@@ -112,6 +112,11 @@ export function getCurrentStep(): GosuslugiStep {
     return 'intro';
   }
 
+  // Rate limit page — Gosuslugi blocks too frequent requests
+  if (/превышено\s+количество\s+запросов/i.test(bodyText)) {
+    return 'rate_limited';
+  }
+
   // Loading / transition page — expected between steps, no warning needed
   if (/загружается/i.test(bodyText) ||
       /подождите/i.test(bodyText) ||
