@@ -71,7 +71,6 @@ export const PLAN_LABELS: Record<LicensePlan, string> = {
 
 export interface LicenseInfo {
   key: string;
-  deviceId: string;
   plan: LicensePlan;
   limit: number;
   used: number;

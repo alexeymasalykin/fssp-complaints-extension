@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS licenses (
   plan TEXT NOT NULL CHECK (plan IN ('trial', 'start', 'business', 'corp')),
   limit_per_month INTEGER NOT NULL DEFAULT 50,
   used_this_month INTEGER NOT NULL DEFAULT 0,
-  device_id TEXT,
   expires_at TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

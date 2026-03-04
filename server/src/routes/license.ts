@@ -6,14 +6,14 @@ const router = Router();
 // POST /api/license/activate
 router.post('/activate', (req, res) => {
   try {
-    const { key, deviceId } = req.body;
+    const { key } = req.body;
 
-    if (!key || !deviceId) {
-      res.status(400).json({ ok: false, code: 'missing_params', message: 'key and deviceId are required' });
+    if (!key) {
+      res.status(400).json({ ok: false, code: 'missing_params', message: 'key is required' });
       return;
     }
 
-    const result = activate(String(key).trim(), String(deviceId).trim());
+    const result = activate(String(key).trim());
     res.json(result);
   } catch (err) {
     handleError(err, res);
@@ -23,14 +23,14 @@ router.post('/activate', (req, res) => {
 // POST /api/license/validate
 router.post('/validate', (req, res) => {
   try {
-    const { key, deviceId } = req.body;
+    const { key } = req.body;
 
-    if (!key || !deviceId) {
-      res.status(400).json({ ok: false, code: 'missing_params', message: 'key and deviceId are required' });
+    if (!key) {
+      res.status(400).json({ ok: false, code: 'missing_params', message: 'key is required' });
       return;
     }
 
-    const result = validate(String(key).trim(), String(deviceId).trim());
+    const result = validate(String(key).trim());
     res.json(result);
   } catch (err) {
     handleError(err, res);
@@ -40,10 +40,10 @@ router.post('/validate', (req, res) => {
 // POST /api/license/increment
 router.post('/increment', (req, res) => {
   try {
-    const { key, deviceId, count } = req.body;
+    const { key, count } = req.body;
 
-    if (!key || !deviceId) {
-      res.status(400).json({ ok: false, code: 'missing_params', message: 'key and deviceId are required' });
+    if (!key) {
+      res.status(400).json({ ok: false, code: 'missing_params', message: 'key is required' });
       return;
     }
 
@@ -53,7 +53,7 @@ router.post('/increment', (req, res) => {
       return;
     }
 
-    const result = increment(String(key).trim(), String(deviceId).trim(), numCount);
+    const result = increment(String(key).trim(), numCount);
     res.json(result);
   } catch (err) {
     handleError(err, res);

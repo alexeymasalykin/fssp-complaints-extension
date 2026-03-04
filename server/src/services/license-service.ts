@@ -9,7 +9,6 @@ export interface LicenseRow {
   plan: string;
   limit_per_month: number;
   used_this_month: number;
-  device_id: string | null;
   expires_at: string;
   active: number;
   created_at: string;
@@ -69,7 +68,7 @@ function getLicenseByKey(key: string): LicenseRow | undefined {
 
 // === Service ===
 
-export function activate(key: string, deviceId: string): ActivateResult {
+export function activate(key: string): ActivateResult {
   const db = getDb();
   const license = getLicenseByKey(key);
 
@@ -81,16 +80,10 @@ export function activate(key: string, deviceId: string): ActivateResult {
     throw new LicenseError('license_expired', 'License has expired');
   }
 
-  // Device binding: first activation sets device, subsequent must match
-  if (license.device_id && license.device_id !== deviceId) {
-    throw new LicenseError('device_mismatch', 'License is bound to another device');
-  }
-
-  if (!license.device_id) {
-    db.run("UPDATE licenses SET device_id = ?, active = 1, activated_at = datetime('now') WHERE id = ?", [deviceId, license.id]);
+  // Activate on first use
+  if (!license.active) {
+    db.run("UPDATE licenses SET active = 1, activated_at = datetime('now') WHERE id = ?", [license.id]);
     saveDb();
-  } else if (!license.active) {
-    throw new LicenseError('license_inactive', 'License is deactivated');
   }
 
   return {
@@ -102,15 +95,11 @@ export function activate(key: string, deviceId: string): ActivateResult {
   };
 }
 
-export function validate(key: string, deviceId: string): ValidateResult {
+export function validate(key: string): ValidateResult {
   const license = getLicenseByKey(key);
 
   if (!license) {
     throw new LicenseError('invalid_key', 'License key not found', 404);
-  }
-
-  if (license.device_id && license.device_id !== deviceId) {
-    throw new LicenseError('device_mismatch', 'License is bound to another device');
   }
 
   const expired = new Date(license.expires_at) < new Date();
@@ -125,7 +114,7 @@ export function validate(key: string, deviceId: string): ValidateResult {
   };
 }
 
-export function increment(key: string, deviceId: string, count: number): IncrementResult {
+export function increment(key: string, count: number): IncrementResult {
   const db = getDb();
   const license = getLicenseByKey(key);
 
@@ -135,10 +124,6 @@ export function increment(key: string, deviceId: string, count: number): Increme
 
   if (!license.active) {
     throw new LicenseError('license_inactive', 'License is deactivated');
-  }
-
-  if (license.device_id && license.device_id !== deviceId) {
-    throw new LicenseError('device_mismatch', 'License is bound to another device');
   }
 
   if (new Date(license.expires_at) < new Date()) {

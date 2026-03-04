@@ -14,23 +14,10 @@ import type {
 
 const LICENSE_SERVER_URL = 'https://alexbottest.ru';
 
-// HMAC public key — must match server HMAC_SECRET
-// In production, embed at build time or fetch from config
+// HMAC key — must match server HMAC_SECRET
 const HMAC_KEY = '304c1b6aa1bd603065738472c69172a5ae653814d4e2d37bdf44d6f1c245b0a2';
 
 const STORAGE_KEY_LICENSE = 'rkl_license';
-const STORAGE_KEY_DEVICE = 'rkl_device_id';
-
-// === Device ID ===
-
-export async function getDeviceId(): Promise<string> {
-  const data = await chrome.storage.local.get(STORAGE_KEY_DEVICE);
-  if (data[STORAGE_KEY_DEVICE]) return data[STORAGE_KEY_DEVICE] as string;
-
-  const id = crypto.randomUUID();
-  await chrome.storage.local.set({ [STORAGE_KEY_DEVICE]: id });
-  return id;
-}
 
 // === HMAC Verification (Web Crypto) ===
 
@@ -44,7 +31,6 @@ async function verifyHmac(payload: Record<string, unknown>, signature: string): 
     ['sign'],
   );
 
-  // Recreate payload without signature field
   const { signature: _sig, ...payloadWithoutSig } = payload;
   const data = JSON.stringify(payloadWithoutSig);
   const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
@@ -88,8 +74,7 @@ async function serverPost<T extends ServerResponse>(path: string, body: Record<s
 // === Activate ===
 
 export async function activateLicense(key: string): Promise<LicenseInfo> {
-  const deviceId = await getDeviceId();
-  const resp = await serverPost<LicenseActivateResponse | LicenseErrorResponse>('/api/license/activate', { key, deviceId });
+  const resp = await serverPost<LicenseActivateResponse | LicenseErrorResponse>('/api/license/activate', { key });
 
   if (!resp.ok) {
     const err = resp as LicenseErrorResponse;
@@ -98,7 +83,6 @@ export async function activateLicense(key: string): Promise<LicenseInfo> {
 
   const data = resp as LicenseActivateResponse;
 
-  // Verify HMAC
   const valid = await verifyHmac(data as unknown as Record<string, unknown>, data.signature);
   if (!valid) {
     throw new LicenseClientError('hmac_invalid', 'Response signature verification failed');
@@ -106,7 +90,6 @@ export async function activateLicense(key: string): Promise<LicenseInfo> {
 
   const license: LicenseInfo = {
     key,
-    deviceId,
     plan: data.plan as LicensePlan,
     limit: data.limit,
     used: data.used,
@@ -126,14 +109,11 @@ export async function validateLicense(): Promise<LicenseInfo | null> {
   if (!cached) return null;
 
   try {
-    const deviceId = await getDeviceId();
     const resp = await serverPost<LicenseValidateResponse | LicenseErrorResponse>('/api/license/validate', {
       key: cached.key,
-      deviceId,
     });
 
     if (!resp.ok) {
-      // Key invalid or device mismatch — clear cache
       await clearCachedLicense();
       return null;
     }
@@ -143,7 +123,7 @@ export async function validateLicense(): Promise<LicenseInfo | null> {
     const valid = await verifyHmac(data as unknown as Record<string, unknown>, data.signature);
     if (!valid) {
       console.warn('HMAC verification failed on validate');
-      return cached; // Keep cached license on HMAC failure
+      return cached;
     }
 
     const updated: LicenseInfo = {
@@ -159,7 +139,6 @@ export async function validateLicense(): Promise<LicenseInfo | null> {
     await cacheLicense(updated);
     return updated;
   } catch {
-    // Network error — return cached (offline tolerance)
     console.warn('License validation failed (offline?), using cache');
     return cached;
   }
@@ -172,10 +151,8 @@ export async function incrementUsage(count: number = 1): Promise<{ used: number;
   if (!cached) return null;
 
   try {
-    const deviceId = await getDeviceId();
     const resp = await serverPost<LicenseIncrementResponse | LicenseErrorResponse>('/api/license/increment', {
       key: cached.key,
-      deviceId,
       count,
     });
 
@@ -186,7 +163,6 @@ export async function incrementUsage(count: number = 1): Promise<{ used: number;
 
     const data = resp as LicenseIncrementResponse;
 
-    // Update cached used count
     cached.used = data.used;
     await cacheLicense(cached);
 

@@ -73,7 +73,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-restoreState();
+const stateReady = restoreState();
 
 async function restoreState(): Promise<void> {
   try {
@@ -153,6 +153,9 @@ async function handleMessage(
   message: IncomingMessage,
   sender: chrome.runtime.MessageSender
 ): Promise<BaseResponse | StatusResponse> {
+  // Wait for state restoration before handling any message
+  await stateReady;
+
   switch (message.type) {
     case 'GET_STATUS':
       return { ok: true, ...buildStatusUpdate() };
