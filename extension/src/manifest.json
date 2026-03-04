@@ -10,7 +10,8 @@
     "notifications",
     "tabs",
     "scripting",
-    "downloads"
+    "downloads",
+    "alarms"
   ],
   "host_permissions": [
     "https://www.gosuslugi.ru/655781/*"

@@ -1,7 +1,8 @@
 // Popup — управление интерфейсом расширения RKL Check
 
-import type { Employee, CheckResult, ResultStats, QueueState, Settings } from '@/types';
-import type { PopupMessage, StatusUpdateMessage, StatusResponse, BaseResponse, SettingsResponse } from '@/lib/messages';
+import type { Employee, CheckResult, ResultStats, QueueState, Settings, LicenseInfo } from '@/types';
+import { PLAN_LABELS, type LicensePlan } from '@/types';
+import type { PopupMessage, StatusUpdateMessage, StatusResponse, BaseResponse, SettingsResponse, LicenseResponse } from '@/lib/messages';
 import { parseExcelFile, validateEmployees, exportResultsToExcel } from '@/lib/excel';
 
 // === Получение DOM-элементов ===
@@ -65,7 +66,12 @@ function sendMessage<T extends BaseResponse>(message: PopupMessage): Promise<T> 
 
 function bindEvents(): void {
   // Экран лицензии
-  $('btn-skip-license').addEventListener('click', () => showScreen('main'));
+  $('btn-activate').addEventListener('click', handleActivateLicense);
+  $('license-key-input').addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') handleActivateLicense();
+  });
+  $('btn-license-back').addEventListener('click', () => showScreen('main'));
+  $('license-bar').addEventListener('click', openChangeLicense);
 
   // Drag-drop зона
   const dropZone = $('drop-zone');
@@ -144,9 +150,20 @@ function showScreen(name: keyof typeof screens): void {
 }
 
 function restoreScreen(status: StatusResponse): void {
+  // Update license UI if available
+  if (status.license) updateLicenseUI(status.license);
+
+  // If no active license, show activation screen (first time — no back button)
+  if (!status.license || !status.license.active) {
+    $('btn-license-back').classList.add('hidden');
+    $('license-current-info').classList.add('hidden');
+    showScreen('license');
+    return;
+  }
+
   switch (status.state) {
     case 'idle':
-      showScreen('license');
+      showScreen('main');
       break;
     case 'ready':
       parsedEmployees = status.employees ?? [];
@@ -249,6 +266,15 @@ async function startCheck(): Promise<void> {
     tabId: tab.id!,
   });
   if (!startResult?.ok) {
+    if (startResult?.error === 'license_inactive') {
+      alert('Лицензия неактивна или истекла. Активируйте новый ключ.');
+      showScreen('license');
+      return;
+    }
+    if (startResult?.error === 'limit_exceeded') {
+      alert('Исчерпан лимит проверок на этот месяц. Обновите тариф.');
+      return;
+    }
     alert(`Ошибка запуска: ${startResult?.error ?? 'неизвестная ошибка'}`);
     return;
   }
@@ -280,6 +306,8 @@ async function newCheck(): Promise<void> {
 // === Обновление UI по статусу ===
 
 function handleStatusUpdate(status: StatusUpdateMessage): void {
+  if (status.license) updateLicenseUI(status.license);
+
   switch (status.state) {
     case 'running':
     case 'paused':
@@ -434,6 +462,101 @@ async function saveSettings(): Promise<void> {
 
   await sendMessage({ type: 'SAVE_SETTINGS', settings: updated as Settings });
   showScreen(settingsReturnScreen);
+}
+
+// === Лицензия ===
+
+async function handleActivateLicense(): Promise<void> {
+  const input = $('license-key-input') as HTMLInputElement;
+  const key = input.value.trim();
+  const errorEl = $('license-error');
+  const btn = $('btn-activate') as HTMLButtonElement;
+
+  if (!key) {
+    showLicenseError('Введите лицензионный ключ');
+    return;
+  }
+
+  // Disable button during request
+  btn.disabled = true;
+  btn.textContent = 'Активация...';
+  errorEl.classList.add('hidden');
+
+  try {
+    const resp = await sendMessage<LicenseResponse>({ type: 'ACTIVATE_LICENSE', key });
+
+    if (resp?.ok && resp.license) {
+      updateLicenseUI(resp.license);
+      showScreen('main');
+    } else {
+      const errMsg = resp?.error ?? 'unknown';
+      showLicenseError(mapLicenseError(errMsg));
+    }
+  } catch {
+    showLicenseError('Не удалось связаться с сервером лицензий');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Активировать';
+  }
+}
+
+function showLicenseError(msg: string): void {
+  const el = $('license-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function mapLicenseError(error: string): string {
+  // Error format from service worker: "code:message"
+  const code = error.split(':')[0];
+  const map: Record<string, string> = {
+    invalid_key: 'Ключ не найден. Проверьте правильность ввода.',
+    license_inactive: 'Лицензия деактивирована.',
+    license_expired: 'Срок действия лицензии истёк.',
+    device_mismatch: 'Ключ привязан к другому устройству.',
+    hmac_invalid: 'Ошибка проверки подписи сервера.',
+    missing_params: 'Ошибка: не все параметры переданы.',
+  };
+  return map[code] ?? 'Ошибка активации. Попробуйте позже.';
+}
+
+function openChangeLicense(): void {
+  // Show current license info and back button
+  const info = $('license-current-info');
+  const backBtn = $('btn-license-back');
+
+  if (lastStatus?.license) {
+    const lic = lastStatus.license;
+    const planLabel = PLAN_LABELS[lic.plan as LicensePlan] ?? lic.plan;
+    const exp = new Date(lic.expires).toLocaleDateString('ru-RU');
+    info.textContent = `Текущий тариф: ${planLabel} (${lic.used}/${lic.limit}), до ${exp}`;
+    info.classList.remove('hidden');
+  }
+
+  backBtn.classList.remove('hidden');
+  ($('license-key-input') as HTMLInputElement).value = '';
+  $('license-error').classList.add('hidden');
+  showScreen('license');
+}
+
+function updateLicenseUI(license: LicenseInfo): void {
+  // Plan badge in header
+  const badge = document.getElementById('plan-badge');
+  if (badge) {
+    badge.textContent = PLAN_LABELS[license.plan as LicensePlan] ?? license.plan;
+  }
+
+  // License bar
+  const barPlan = document.getElementById('license-bar-plan');
+  const barUsage = document.getElementById('license-bar-usage');
+  const barExpires = document.getElementById('license-bar-expires');
+
+  if (barPlan) barPlan.textContent = PLAN_LABELS[license.plan as LicensePlan] ?? license.plan;
+  if (barUsage) barUsage.textContent = `${license.used} / ${license.limit}`;
+  if (barExpires) {
+    const exp = new Date(license.expires);
+    barExpires.textContent = `до ${exp.toLocaleDateString('ru-RU')}`;
+  }
 }
 
 // === Навигация ===
