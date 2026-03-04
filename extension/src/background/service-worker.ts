@@ -440,7 +440,7 @@ async function onCheckComplete(): Promise<void> {
       chrome.notifications.create('rkl-check-complete', {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('src/icons/icon128.png'),
-        title: 'RKL Check — Проверка завершена',
+        title: 'РКЛ Check — Проверка завершена',
         message: `Проверено: ${queue.results.length}. Найдено в РКЛ: ${found}. Ошибок: ${error}.`,
       });
     } catch (err) {

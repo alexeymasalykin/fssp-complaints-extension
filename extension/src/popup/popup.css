@@ -901,6 +901,45 @@ body::after {
   border: 1px solid rgba(14, 165, 233, 0.2);
 }
 
+/* === Footer hint (main screen) === */
+
+.footer-hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 1.6;
+}
+
+.footer-hint__security {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: #64748B;
+}
+
+.footer-hint__security svg {
+  flex-shrink: 0;
+  color: #10B981;
+}
+
+.footer-hint__version {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #64748B;
+}
+
+.footer-hint__version a {
+  color: #64748B;
+  text-decoration: none;
+}
+
+.footer-hint__version a:hover {
+  color: #0369A1;
+  text-decoration: underline;
+}
+
 /* === Reduced motion === */
 
 @media (prefers-reduced-motion: reduce) {
