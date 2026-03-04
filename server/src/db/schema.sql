@@ -42,3 +42,13 @@ CREATE TABLE IF NOT EXISTS payments (
   status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Server settings (key-value)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Seed last_reset_at if missing
+INSERT OR IGNORE INTO settings (key, value)
+  VALUES ('last_reset_at', datetime('now'));

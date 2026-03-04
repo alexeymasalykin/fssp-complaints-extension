@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { initDb, closeDb } from './db/init.js';
 import { hmacMiddleware } from './middleware/hmac.js';
 import licenseRouter from './routes/license.js';
+import { startScheduler, stopScheduler } from './services/scheduler.js';
 
 const PORT = Number(process.env.PORT) || 3100;
 
@@ -48,12 +49,15 @@ async function start(): Promise<void> {
   await initDb();
   console.log('Database initialized');
 
+  startScheduler();
+
   const server = app.listen(PORT, () => {
     console.log(`License server running on http://localhost:${PORT}`);
   });
 
   function shutdown(): void {
     console.log('Shutting down...');
+    stopScheduler();
     server.close(() => {
       closeDb();
       process.exit(0);
