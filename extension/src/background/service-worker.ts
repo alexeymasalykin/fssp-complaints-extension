@@ -18,11 +18,13 @@ import type {
   IncomingMessage,
   BaseResponse,
   StatusResponse,
+  SettingsResponse,
   StepResponse,
   ReadResultResponse,
   StatusUpdateMessage,
   BackgroundToContentMessage,
 } from '@/lib/messages';
+import { exportResultsToArrayBuffer } from '@/lib/excel';
 
 // === State ===
 
@@ -148,6 +150,16 @@ async function handleMessage(
 
     case 'CLEAR_SESSION':
       return clearSession();
+
+    case 'GET_SETTINGS':
+      return { ok: true, settings } as SettingsResponse;
+
+    case 'SAVE_SETTINGS': {
+      settings = { ...settings, ...message.settings };
+      await chrome.storage.local.set({ settings });
+      notifyPopup();
+      return { ok: true };
+    }
 
     case 'DEBUG_DOM': {
       const csReady = await ensureContentScript(message.tabId);
@@ -284,6 +296,7 @@ function stopCheck(): BaseResponse {
   queue.state = 'completed';
   saveQueue();
   notifyPopup();
+  onCheckComplete();
   return { ok: true };
 }
 
@@ -313,6 +326,54 @@ function clearSession(): BaseResponse {
   return { ok: true };
 }
 
+// === Completion actions (notification + auto-download) ===
+
+async function onCheckComplete(): Promise<void> {
+  // Notification
+  if (settings.notifyOnComplete) {
+    try {
+      let found = 0;
+      let error = 0;
+      for (const r of queue.results) {
+        if (r.status === 'found') found++;
+        else if (r.status === 'error') error++;
+      }
+      chrome.notifications.create('rkl-check-complete', {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('src/icons/icon128.png'),
+        title: 'RKL Check — Проверка завершена',
+        message: `Проверено: ${queue.results.length}. Найдено в РКЛ: ${found}. Ошибок: ${error}.`,
+      });
+    } catch (err) {
+      console.error('RKL Check: notification error', err);
+    }
+  }
+
+  // Auto-download
+  if (settings.autoDownload && queue.employees.length > 0) {
+    try {
+      const { buffer, filename } = exportResultsToArrayBuffer(queue.employees, queue.results);
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const subfolder = (settings.downloadSubfolder || 'RKL_Check')
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, '_');
+
+      await chrome.downloads.download({
+        url,
+        filename: `${subfolder}/${filename}`,
+        saveAs: false,
+      });
+
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      console.error('RKL Check: auto-download error', err);
+    }
+  }
+}
+
 // === Check loop ===
 
 async function processNext(): Promise<void> {
@@ -338,6 +399,7 @@ async function processLoop(): Promise<void> {
       queue.state = 'completed';
       await saveQueue();
       notifyPopup();
+      onCheckComplete();
       return;
     }
 

@@ -1,7 +1,7 @@
 // Popup — управление интерфейсом расширения RKL Check
 
-import type { Employee, CheckResult, ResultStats, QueueState } from '@/types';
-import type { PopupMessage, StatusUpdateMessage, StatusResponse, BaseResponse } from '@/lib/messages';
+import type { Employee, CheckResult, ResultStats, QueueState, Settings } from '@/types';
+import type { PopupMessage, StatusUpdateMessage, StatusResponse, BaseResponse, SettingsResponse } from '@/lib/messages';
 import { parseExcelFile, validateEmployees, exportResultsToExcel } from '@/lib/excel';
 
 // === Получение DOM-элементов ===
@@ -14,6 +14,7 @@ const screens = {
   preview: $('screen-preview'),
   progress: $('screen-progress'),
   results: $('screen-results'),
+  settings: $('screen-settings'),
 } as const;
 
 // === Состояние popup ===
@@ -22,6 +23,7 @@ let currentFilter: 'all' | 'found' | 'error' = 'all';
 let parsedEmployees: Employee[] = [];
 let lastStatus: StatusUpdateMessage | null = null;
 let port: chrome.runtime.Port | null = null;
+let settingsReturnScreen: keyof typeof screens = 'main';
 
 // === Инициализация ===
 
@@ -105,6 +107,23 @@ function bindEvents(): void {
   $('btn-export').addEventListener('click', exportResults);
   $('btn-retry-errors').addEventListener('click', retryErrors);
   $('btn-new-check').addEventListener('click', newCheck);
+
+  // Settings
+  document.querySelectorAll<HTMLButtonElement>('.btn-settings-open').forEach((btn) => {
+    btn.addEventListener('click', openSettings);
+  });
+  $('btn-settings-save').addEventListener('click', saveSettings);
+  $('btn-settings-back').addEventListener('click', () => showScreen(settingsReturnScreen));
+
+  $('setting-auto-download').addEventListener('change', () => {
+    const checked = ($('setting-auto-download') as HTMLInputElement).checked;
+    $('setting-folder-row').classList.toggle('hidden', !checked);
+  });
+
+  $('setting-delay').addEventListener('input', () => {
+    const val = Number(($('setting-delay') as HTMLInputElement).value);
+    $('delay-value-hint').textContent = `${(val / 1000).toFixed(1)} сек`;
+  });
 
   // Фильтры
   document.querySelectorAll<HTMLButtonElement>('.filter-tab').forEach((tab) => {
@@ -378,6 +397,43 @@ function renderResultsTable(): void {
 function exportResults(): void {
   if (!lastStatus) return;
   exportResultsToExcel(lastStatus.employees, lastStatus.results);
+}
+
+// === Настройки ===
+
+async function openSettings(): Promise<void> {
+  // Remember current screen to return to
+  for (const [name, el] of Object.entries(screens)) {
+    if (!el.classList.contains('hidden')) {
+      settingsReturnScreen = name as keyof typeof screens;
+      break;
+    }
+  }
+
+  const resp = await sendMessage<SettingsResponse>({ type: 'GET_SETTINGS' });
+  if (resp?.ok) {
+    const s = resp.settings;
+    ($('setting-auto-download') as HTMLInputElement).checked = s.autoDownload;
+    ($('setting-notify') as HTMLInputElement).checked = s.notifyOnComplete;
+    ($('setting-download-folder') as HTMLInputElement).value = s.downloadSubfolder;
+    ($('setting-delay') as HTMLInputElement).value = String(s.delayBetweenChecks);
+    $('delay-value-hint').textContent = `${(s.delayBetweenChecks / 1000).toFixed(1)} сек`;
+    $('setting-folder-row').classList.toggle('hidden', !s.autoDownload);
+  }
+
+  showScreen('settings');
+}
+
+async function saveSettings(): Promise<void> {
+  const updated: Partial<Settings> = {
+    autoDownload: ($('setting-auto-download') as HTMLInputElement).checked,
+    notifyOnComplete: ($('setting-notify') as HTMLInputElement).checked,
+    downloadSubfolder: ($('setting-download-folder') as HTMLInputElement).value.trim() || 'RKL_Check',
+    delayBetweenChecks: Number(($('setting-delay') as HTMLInputElement).value),
+  };
+
+  await sendMessage({ type: 'SAVE_SETTINGS', settings: updated as Settings });
+  showScreen(settingsReturnScreen);
 }
 
 // === Навигация ===

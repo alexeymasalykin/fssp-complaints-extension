@@ -130,12 +130,12 @@ export function validateEmployees(employees: Employee[]): string[] {
   return errors;
 }
 
-// === Экспорт результатов в Excel ===
+// === Построение workbook с результатами ===
 
-export function exportResultsToExcel(
+function buildResultWorkbook(
   employees: Employee[],
   results: CheckResult[]
-): void {
+): { workbook: XLSX.WorkBook; filename: string } {
   const rows = results.map((r, i) => {
     const emp = employees[i] ?? {} as Partial<Employee>;
     const statusText =
@@ -172,8 +172,8 @@ export function exportResultsToExcel(
     { wch: 30 }, // Примечание
   ];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Результаты РКЛ');
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, ws, 'Результаты РКЛ');
 
   const now = new Date();
   const dateStr = [
@@ -182,5 +182,26 @@ export function exportResultsToExcel(
     String(now.getDate()).padStart(2, '0'),
   ].join('-');
 
-  XLSX.writeFile(wb, `RKL_Check_${dateStr}.xlsx`);
+  return { workbook, filename: `RKL_Check_${dateStr}.xlsx` };
+}
+
+// === Экспорт результатов — скачивание через браузер (popup) ===
+
+export function exportResultsToExcel(
+  employees: Employee[],
+  results: CheckResult[]
+): void {
+  const { workbook, filename } = buildResultWorkbook(employees, results);
+  XLSX.writeFile(workbook, filename);
+}
+
+// === Экспорт результатов — ArrayBuffer (для service worker / chrome.downloads) ===
+
+export function exportResultsToArrayBuffer(
+  employees: Employee[],
+  results: CheckResult[]
+): { buffer: ArrayBuffer; filename: string } {
+  const { workbook, filename } = buildResultWorkbook(employees, results);
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+  return { buffer, filename };
 }

@@ -14,6 +14,8 @@ export type PopupMessage =
   | { type: 'STOP_CHECK' }
   | { type: 'RETRY_ERRORS'; tabId: number }
   | { type: 'CLEAR_SESSION' }
+  | { type: 'GET_SETTINGS' }
+  | { type: 'SAVE_SETTINGS'; settings: Settings }
   | { type: 'DEBUG_DOM'; tabId: number };
 
 // === Background → Content ===
@@ -48,6 +50,10 @@ export interface StatusResponse extends BaseResponse {
   employees: Employee[];
   startedAt: string | null;
   pausedAt: string | null;
+  settings: Settings;
+}
+
+export interface SettingsResponse extends BaseResponse {
   settings: Settings;
 }
 

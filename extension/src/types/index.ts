@@ -43,6 +43,9 @@ export interface Settings {
   resultTimeout: number;
   stepTimeout: number;
   maxRetries: number;
+  autoDownload: boolean;
+  downloadSubfolder: string;
+  notifyOnComplete: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -50,6 +53,9 @@ export const DEFAULT_SETTINGS: Settings = {
   resultTimeout: 120000,
   stepTimeout: 10000,
   maxRetries: 3,
+  autoDownload: false,
+  downloadSubfolder: 'RKL_Check',
+  notifyOnComplete: true,
 };
 
 // === Лицензия (заглушка для MVP) ===
