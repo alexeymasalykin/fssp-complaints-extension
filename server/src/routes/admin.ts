@@ -68,6 +68,42 @@ router.get('/keys', (_req, res) => {
   res.json({ ok: true, keys });
 });
 
+// POST /api/admin/update-key { key, limit?, used?, active? }
+router.post('/update-key', (req, res) => {
+  const { key, limit, used, active } = req.body;
+
+  if (!key) {
+    res.status(400).json({ ok: false, error: 'key is required' });
+    return;
+  }
+
+  const db = getDb();
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+
+  if (limit !== undefined) { sets.push('limit_per_month = ?'); vals.push(Number(limit)); }
+  if (used !== undefined) { sets.push('used_this_month = ?'); vals.push(Number(used)); }
+  if (active !== undefined) { sets.push('active = ?'); vals.push(active ? 1 : 0); }
+
+  if (!sets.length) {
+    res.status(400).json({ ok: false, error: 'Nothing to update. Use: limit, used, active' });
+    return;
+  }
+
+  vals.push(key);
+  db.run(`UPDATE licenses SET ${sets.join(', ')} WHERE key = ?`, vals);
+  const changes = db.getRowsModified();
+  saveDb();
+
+  if (!changes) {
+    res.status(404).json({ ok: false, error: 'Key not found' });
+    return;
+  }
+
+  console.log(`[admin] Updated key ${key}: ${sets.join(', ')}`);
+  res.json({ ok: true, updated: sets.length });
+});
+
 // Admin auth middleware
 export function adminAuth(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction): void {
   if (!ADMIN_SECRET) {
