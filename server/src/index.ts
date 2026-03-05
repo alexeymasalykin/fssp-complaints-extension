@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { initDb, closeDb } from './db/init.js';
 import { hmacMiddleware } from './middleware/hmac.js';
 import licenseRouter from './routes/license.js';
+import adminRouter, { adminAuth } from './routes/admin.js';
 import { startScheduler, stopScheduler } from './services/scheduler.js';
 
 const PORT = Number(process.env.PORT) || 3100;
@@ -17,8 +18,8 @@ app.use(helmet());
 // CORS — allow Chrome extension origin
 app.use(cors({
   origin: true,
-  methods: ['POST'],
-  allowedHeaders: ['Content-Type'],
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Rate limit: 60 requests per minute per IP
@@ -38,6 +39,7 @@ app.use('/api/license', hmacMiddleware);
 
 // Routes
 app.use('/api/license', licenseRouter);
+app.use('/api/admin', adminAuth, adminRouter);
 
 // Health check
 app.get('/health', (_req, res) => {

@@ -7,7 +7,8 @@
     "dev": "node --env-file=.env --import tsx src/index.ts",
     "start": "node --env-file=.env --import tsx src/index.ts",
     "seed": "node --env-file=.env --import tsx src/scripts/seed.ts",
-    "reset-counters": "node --env-file=.env --import tsx src/scripts/reset-counters.ts"
+    "reset-counters": "node --env-file=.env --import tsx src/scripts/reset-counters.ts",
+    "gen-key": "node --env-file=.env --import tsx src/scripts/gen-key.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
