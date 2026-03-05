@@ -15,9 +15,10 @@ const footerLinks = [
     ],
   },
   {
-    title: "Поддержка",
+    title: "Контакты",
     links: [
-      { label: "support@alexbottest.ru", href: "mailto:support@alexbottest.ru" },
+      { label: "bbk-it@mail.ru", href: "mailto:bbk-it@mail.ru" },
+      { label: "+7 (995) 153-88-23", href: "tel:+79951538823" },
     ],
   },
 ];
@@ -78,9 +79,12 @@ export function Footer() {
         </div>
 
         {/* Bottom */}
-        <div className="border-t border-slate-800 pt-8 text-center">
+        <div className="border-t border-slate-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs text-slate-500">
             &copy; {new Date().getFullYear()} РКЛ Check. Все права защищены.
+          </p>
+          <p className="text-xs text-slate-600">
+            ООО «ЮНИТИ» · ИНН 7447259052 · КПП 773101001
           </p>
         </div>
       </div>

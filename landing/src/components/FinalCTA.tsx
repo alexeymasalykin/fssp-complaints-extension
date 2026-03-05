@@ -27,7 +27,7 @@ export function FinalCTA() {
               Попробовать бесплатно
             </a>
             <a
-              href="mailto:support@alexbottest.ru"
+              href="mailto:bbk-it@mail.ru"
               className="border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white font-semibold px-10 py-4 rounded-xl text-base transition-all duration-200 cursor-pointer"
             >
               Связаться с нами

@@ -1,98 +1,54 @@
-"use client";
-
-import { useState } from "react";
 import { AnimateOnScroll } from "./AnimateOnScroll";
 
-interface Plan {
-  name: string;
-  description: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  limit: string;
-  target: string;
-  features: string[];
-  popular?: boolean;
-  trial?: boolean;
-  cta: string;
-}
-
-const plans: Plan[] = [
+const plans = [
   {
     name: "Пробный",
     description: "Для знакомства с продуктом",
-    monthlyPrice: 0,
-    annualPrice: 0,
-    limit: "10 проверок",
-    target: "Одноразово",
     features: [
       "10 проверок (разово)",
       "Все функции расширения",
       "Экспорт в Excel",
       "Email-поддержка",
     ],
-    trial: true,
-    cta: "Начать бесплатно",
   },
   {
     name: "Старт",
     description: "Для малого бизнеса",
-    monthlyPrice: 2990,
-    annualPrice: 2390,
-    limit: "1 500 проверок/мес",
-    target: "До 50 сотрудников",
     features: [
-      "1 500 проверок в месяц",
+      "До 1 500 проверок в месяц",
       "Все функции расширения",
       "Экспорт в Excel",
       "Email-поддержка",
       "Обновления",
     ],
-    cta: "Выбрать Старт",
   },
   {
     name: "Бизнес",
     description: "Для среднего бизнеса",
-    monthlyPrice: 4990,
-    annualPrice: 3990,
-    limit: "6 000 проверок/мес",
-    target: "До 200 сотрудников",
+    popular: true,
     features: [
-      "6 000 проверок в месяц",
+      "До 6 000 проверок в месяц",
       "Все функции расширения",
       "Экспорт в Excel",
       "Приоритетная поддержка",
       "Обновления",
     ],
-    popular: true,
-    cta: "Выбрать Бизнес",
   },
   {
     name: "Корпорация",
     description: "Для крупного бизнеса",
-    monthlyPrice: 9990,
-    annualPrice: 7990,
-    limit: "30 000 проверок/мес",
-    target: "До 1 000 сотрудников",
     features: [
-      "30 000 проверок в месяц",
+      "До 30 000 проверок в месяц",
       "Все функции расширения",
       "Экспорт в Excel",
       "Выделенная поддержка",
       "Обновления",
       "Индивидуальные условия",
     ],
-    cta: "Выбрать Корпорацию",
   },
 ];
 
-function formatPrice(price: number): string {
-  if (price === 0) return "0";
-  return price.toLocaleString("ru-RU");
-}
-
 export function Pricing() {
-  const [annual, setAnnual] = useState(false);
-
   return (
     <section id="pricing" className="py-20 lg:py-28 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -101,54 +57,17 @@ export function Pricing() {
             Тарифы
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
-            Простые и прозрачные цены
+            Гибкие тарифы под ваш объём
           </h2>
           <p className="text-slate-500 text-base max-w-xl mx-auto">
-            Без скрытых платежей, без оплаты за каждую проверку. Фиксированная
-            подписка — проверяйте сколько нужно в рамках лимита.
+            Фиксированная подписка без оплаты за каждую проверку.
+            Точные цены появятся в ближайшее время.
           </p>
-        </AnimateOnScroll>
-
-        {/* Monthly/Annual toggle */}
-        <AnimateOnScroll className="flex items-center justify-center gap-4 mb-12">
-          <span
-            className={`text-sm font-medium transition-colors duration-200 ${
-              !annual ? "text-slate-900" : "text-slate-400"
-            }`}
-          >
-            Помесячно
-          </span>
-          <button
-            onClick={() => setAnnual(!annual)}
-            className={`relative w-14 h-7 rounded-full transition-colors duration-300 cursor-pointer ${
-              annual ? "bg-sky-700" : "bg-slate-300"
-            }`}
-            aria-label="Переключить на годовую подписку"
-          >
-            <div
-              className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-300 ${
-                annual ? "translate-x-7" : ""
-              }`}
-            />
-          </button>
-          <span
-            className={`text-sm font-medium transition-colors duration-200 ${
-              annual ? "text-slate-900" : "text-slate-400"
-            }`}
-          >
-            Годовая
-          </span>
-          {annual && (
-            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-              -20%
-            </span>
-          )}
         </AnimateOnScroll>
 
         {/* Cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {plans.map((plan, i) => {
-            const price = annual ? plan.annualPrice : plan.monthlyPrice;
             const isPopular = plan.popular;
 
             return (
@@ -170,7 +89,7 @@ export function Pricing() {
                   )}
 
                   {/* Plan name */}
-                  <div className="mb-4">
+                  <div className="mb-6">
                     <h3
                       className={`text-lg font-bold ${
                         isPopular ? "text-white" : "text-slate-900"
@@ -187,32 +106,18 @@ export function Pricing() {
                     </p>
                   </div>
 
-                  {/* Price */}
-                  <div className="mb-1">
+                  {/* Price placeholder */}
+                  <div className="mb-6">
                     <span
-                      className={`text-4xl font-extrabold ${
-                        isPopular ? "text-white" : "text-slate-900"
+                      className={`text-sm font-medium px-3 py-1.5 rounded-full ${
+                        isPopular
+                          ? "bg-sky-500/20 text-sky-300"
+                          : "bg-sky-50 text-sky-700"
                       }`}
                     >
-                      {formatPrice(price)}
-                    </span>
-                    <span
-                      className={`text-base ml-1 ${
-                        isPopular ? "text-slate-300" : "text-slate-500"
-                      }`}
-                    >
-                      {plan.trial ? "₽" : "₽/мес"}
+                      Цена уточняется
                     </span>
                   </div>
-
-                  {/* Target */}
-                  <p
-                    className={`text-xs mb-6 ${
-                      isPopular ? "text-slate-400" : "text-slate-400"
-                    }`}
-                  >
-                    {plan.target} &middot; {plan.limit}
-                  </p>
 
                   {/* Features */}
                   <ul className="space-y-3 mb-8 flex-1">
@@ -246,16 +151,14 @@ export function Pricing() {
 
                   {/* CTA */}
                   <a
-                    href="#"
+                    href="mailto:bbk-it@mail.ru?subject=РКЛ Check — тариф «{plan.name}»"
                     className={`block text-center py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer ${
                       isPopular
                         ? "bg-sky-500 hover:bg-sky-400 text-white shadow-lg shadow-sky-500/25"
-                        : plan.trial
-                        ? "bg-slate-900 hover:bg-slate-800 text-white"
                         : "bg-sky-700 hover:bg-sky-600 text-white"
                     }`}
                   >
-                    {plan.cta}
+                    Узнать цену
                   </a>
                 </div>
               </AnimateOnScroll>
@@ -263,12 +166,33 @@ export function Pricing() {
           })}
         </div>
 
-        {/* Annual savings note */}
-        <AnimateOnScroll className="text-center mt-8">
-          <p className="text-slate-400 text-sm">
-            Годовая подписка — скидка 20% (2 месяца бесплатно). Все цены
-            указаны без НДС.
-          </p>
+        {/* Early access note */}
+        <AnimateOnScroll className="text-center mt-10">
+          <div className="inline-flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-sm">
+            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center shrink-0">
+              <svg
+                className="w-5 h-5 text-sky-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-900">
+                Пробный период — бесплатно
+              </p>
+              <p className="text-xs text-slate-500">
+                10 проверок без регистрации и привязки карты
+              </p>
+            </div>
+          </div>
         </AnimateOnScroll>
       </div>
     </section>

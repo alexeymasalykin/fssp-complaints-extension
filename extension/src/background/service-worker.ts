@@ -571,9 +571,11 @@ async function checkOneEmployee(employee: Employee): Promise<CheckResult> {
       // Adaptive step loop — handles any step order
       // Gosuslugi order: intro → birthdate → document → result
       let stepsCompleted = 0;
-      const maxSteps = 6; // safety limit
+      let unknownCount = 0;
+      const maxSteps = 8; // safety limit for real steps
+      const maxUnknown = 15; // loading pages limit (~30s of waiting)
 
-      while (stepsCompleted < maxSteps) {
+      while (stepsCompleted < maxSteps && unknownCount < maxUnknown) {
         if (queue.state !== 'running') throw new Error('Check stopped');
 
         const stepResp = await sendToContent<StepResponse>({ type: 'GET_CURRENT_STEP' }, settings.stepTimeout);
@@ -630,10 +632,14 @@ async function checkOneEmployee(employee: Employee): Promise<CheckResult> {
 
         // unknown step — wait and retry (page might be loading)
         await sleep(2000);
-        stepsCompleted++;
+        unknownCount++;
       }
 
-      throw new Error('Too many step iterations without reaching result');
+      throw new Error(
+        unknownCount >= maxUnknown
+          ? 'Госуслуги не отвечали слишком долго (страница загрузки)'
+          : 'Не удалось дойти до результата за допустимое количество шагов'
+      );
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
