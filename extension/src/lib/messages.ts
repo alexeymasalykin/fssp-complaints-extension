@@ -1,7 +1,7 @@
 // Типы сообщений между компонентами расширения
 // Дискриминированные union для строгой типизации
 
-import type { Employee, QueueState, CheckResult, Settings, LicenseInfo } from '@/types';
+import type { Employee, QueueState, CheckResult, Settings } from '@/types';
 
 // === Popup → Background ===
 
@@ -16,9 +16,6 @@ export type PopupMessage =
   | { type: 'CLEAR_SESSION' }
   | { type: 'GET_SETTINGS' }
   | { type: 'SAVE_SETTINGS'; settings: Settings }
-  | { type: 'ACTIVATE_LICENSE'; key: string }
-  | { type: 'VALIDATE_LICENSE' }
-  | { type: 'GET_LICENSE_INFO' }
   | { type: 'DEBUG_DOM'; tabId: number };
 
 // === Background → Content ===
@@ -54,15 +51,10 @@ export interface StatusResponse extends BaseResponse {
   startedAt: string | null;
   pausedAt: string | null;
   settings: Settings;
-  license: LicenseInfo | null;
 }
 
 export interface SettingsResponse extends BaseResponse {
   settings: Settings;
-}
-
-export interface LicenseResponse extends BaseResponse {
-  license: LicenseInfo | null;
 }
 
 export interface StepResponse extends BaseResponse {
@@ -88,7 +80,6 @@ export interface StatusUpdateMessage {
   startedAt: string | null;
   pausedAt: string | null;
   settings: Settings;
-  license: LicenseInfo | null;
 }
 
 // Все типы входящих сообщений для background

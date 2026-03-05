@@ -58,60 +58,6 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyOnComplete: true,
 };
 
-// === Лицензия ===
-
-export type LicensePlan = 'trial' | 'start' | 'business' | 'corp';
-
-export const PLAN_LABELS: Record<LicensePlan, string> = {
-  trial: 'Пробный',
-  start: 'Старт',
-  business: 'Бизнес',
-  corp: 'Корпоративный',
-};
-
-export interface LicenseInfo {
-  key: string;
-  plan: LicensePlan;
-  limit: number;
-  used: number;
-  expires: string;
-  active: boolean;
-  lastValidated: string | null;
-}
-
-// Server response types
-export interface LicenseActivateResponse {
-  ok: true;
-  plan: LicensePlan;
-  limit: number;
-  used: number;
-  expires: string;
-  signature: string;
-}
-
-export interface LicenseValidateResponse {
-  ok: true;
-  active: boolean;
-  plan: LicensePlan;
-  limit: number;
-  used: number;
-  expires: string;
-  signature: string;
-}
-
-export interface LicenseIncrementResponse {
-  ok: true;
-  used: number;
-  remaining: number;
-  signature: string;
-}
-
-export interface LicenseErrorResponse {
-  ok: false;
-  code: string;
-  message: string;
-}
-
 // === Шаги формы Госуслуг ===
 
 export type GosuslugiStep = 'intro' | 'document' | 'birthdate' | 'result' | 'rate_limited' | 'unknown';

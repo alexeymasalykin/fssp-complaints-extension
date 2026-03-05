@@ -12,7 +12,6 @@ import type {
   QueueData,
   Settings,
   GosuslugiStep,
-  LicenseInfo,
 } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import type {
@@ -20,22 +19,12 @@ import type {
   BaseResponse,
   StatusResponse,
   SettingsResponse,
-  LicenseResponse,
   StepResponse,
   ReadResultResponse,
   StatusUpdateMessage,
   BackgroundToContentMessage,
 } from '@/lib/messages';
 import { exportResultsToArrayBuffer } from '@/lib/excel';
-import {
-  getCachedLicense,
-  activateLicense,
-  validateLicense,
-  incrementUsage,
-  isLicenseActive,
-  checkLimit,
-  LicenseClientError,
-} from '@/lib/license';
 
 // === State ===
 
@@ -49,7 +38,6 @@ let queue: QueueData = {
 };
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
-let cachedLicense: LicenseInfo | null = null;
 let gosuslugiTabId: number | null = null;
 let popupPorts: chrome.runtime.Port[] = [];
 let processingLock = false;
@@ -69,19 +57,6 @@ function showNotification(title: string, message: string): void {
 
 chrome.runtime.onInstalled.addListener(() => {
   saveQueue();
-  // Set up periodic license validation alarm (every 15 min)
-  chrome.alarms.create('license-validate', { periodInMinutes: 15 });
-});
-
-// Periodic license validation
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'license-validate') {
-    const updated = await validateLicense();
-    if (updated) {
-      cachedLicense = updated;
-      notifyPopup();
-    }
-  }
 });
 
 const stateReady = restoreState();
@@ -104,8 +79,6 @@ async function restoreState(): Promise<void> {
         await chrome.storage.local.set({ settings });
       }
     }
-    // Restore cached license
-    cachedLicense = await getCachedLicense();
   } catch (err) {
     console.error('RKL Check: state restore error', err);
   }
@@ -147,7 +120,6 @@ function buildStatusUpdate(): StatusUpdateMessage {
     startedAt: queue.startedAt,
     pausedAt: queue.pausedAt,
     settings,
-    license: cachedLicense,
   };
 }
 
@@ -205,29 +177,6 @@ async function handleMessage(
       await chrome.storage.local.set({ settings });
       notifyPopup();
       return { ok: true };
-    }
-
-    case 'ACTIVATE_LICENSE': {
-      try {
-        cachedLicense = await activateLicense(message.key);
-        notifyPopup();
-        return { ok: true, license: cachedLicense } as LicenseResponse;
-      } catch (err) {
-        const code = err instanceof LicenseClientError ? err.code : 'unknown';
-        const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: `${code}:${msg}`, license: null } as LicenseResponse;
-      }
-    }
-
-    case 'VALIDATE_LICENSE': {
-      cachedLicense = await validateLicense();
-      notifyPopup();
-      return { ok: true, license: cachedLicense } as LicenseResponse;
-    }
-
-    case 'GET_LICENSE_INFO': {
-      if (!cachedLicense) cachedLicense = await getCachedLicense();
-      return { ok: true, license: cachedLicense } as LicenseResponse;
     }
 
     case 'DEBUG_DOM': {
@@ -290,15 +239,6 @@ async function startCheck(tabId: number): Promise<BaseResponse> {
   }
   if (!queue.employees.length) {
     return { ok: false, error: 'No employees to check' };
-  }
-
-  // License check
-  if (!cachedLicense) cachedLicense = await getCachedLicense();
-  if (!isLicenseActive(cachedLicense)) {
-    return { ok: false, error: 'license_inactive' };
-  }
-  if (!checkLimit(cachedLicense)) {
-    return { ok: false, error: 'limit_exceeded' };
   }
 
   // Check if there are any pending employees to process
@@ -511,32 +451,6 @@ async function processLoop(): Promise<void> {
     queue.results[idx] = result;
     await saveQueue();
     notifyPopup();
-
-    // Increment usage on successful check (found or not_found)
-    if (result.status === 'found' || result.status === 'not_found') {
-      try {
-        const usage = await incrementUsage(1);
-        if (usage && cachedLicense) {
-          cachedLicense.used = usage.used;
-          notifyPopup();
-        }
-      } catch (err) {
-        if (err instanceof LicenseClientError && err.code === 'limit_exceeded') {
-          queue.state = 'paused';
-          await saveQueue();
-          notifyPopup();
-          return;
-        }
-      }
-
-      // Check remaining limit before next employee
-      if (cachedLicense && !checkLimit(cachedLicense)) {
-        queue.state = 'paused';
-        await saveQueue();
-        notifyPopup();
-        return;
-      }
-    }
 
     if (queue.state !== 'running') return;
 
