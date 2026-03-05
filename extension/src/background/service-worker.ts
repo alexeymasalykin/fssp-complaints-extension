@@ -747,19 +747,22 @@ async function waitForStepChange(fromStep: GosuslugiStep): Promise<GosuslugiStep
 // All events are naturally trusted and Angular's Zone.js captures them.
 
 async function fillDocumentInPage(tabId: number, series: string, number: string, issueDate: string): Promise<void> {
+  // Date field uses lib-date-picker mask — strip dots for digit-by-digit input
+  const issueDateDigits = issueDate.replace(/\D/g, '');
+
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
-    func: (s: string, n: string, d: string) => {
-      // execCommand('insertText') creates TRUSTED input events
-      // that Angular's DefaultValueAccessor and Zone.js capture
+    func: async (s: string, n: string, d: string, dDigits: string) => {
+      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+      // Plain text field: execCommand with full value
       function setVal(el: HTMLInputElement, val: string): void {
         el.focus();
         el.select();
         const ok = document.execCommand('insertText', false, val);
         if (ok && el.value === val) { el.blur(); return; }
 
-        // Fallback: native setter + events
         const setter = Object.getOwnPropertyDescriptor(
           HTMLInputElement.prototype, 'value'
         )?.set;
@@ -767,6 +770,46 @@ async function fillDocumentInPage(tabId: number, series: string, number: string,
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.blur();
+      }
+
+      // Date field: type digits one by one (mask auto-inserts dots)
+      async function setDateVal(el: HTMLInputElement, digits: string, fullDate: string): Promise<void> {
+        el.focus();
+        el.select();
+        document.execCommand('delete');
+        await sleep(50);
+
+        for (const char of digits) {
+          document.execCommand('insertText', false, char);
+          await sleep(30);
+        }
+        await sleep(200);
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.blur();
+        await sleep(100);
+
+        // Fallback: try full date string
+        if (el.value !== fullDate) {
+          el.focus();
+          el.select();
+          document.execCommand('delete');
+          await sleep(50);
+          document.execCommand('insertText', false, fullDate);
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.blur();
+          await sleep(100);
+        }
+
+        // Last resort: native setter
+        if (el.value !== fullDate) {
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype, 'value'
+          )?.set;
+          if (setter) { setter.call(el, fullDate); } else { el.value = fullDate; }
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.blur();
+        }
       }
 
       function findByLabel(texts: string[]): HTMLInputElement | null {
@@ -802,11 +845,11 @@ async function fillDocumentInPage(tabId: number, series: string, number: string,
 
       if (seriesInput && s) setVal(seriesInput, s);
       if (numberInput) setVal(numberInput, n);
-      if (dateInput) setVal(dateInput, d);
+      if (dateInput) await setDateVal(dateInput, dDigits, d);
 
       return { seriesOk: !s || !!seriesInput, numberOk: !!numberInput, dateOk: !!dateInput };
     },
-    args: [series, number, issueDate],
+    args: [series, number, issueDate, issueDateDigits],
   });
 
   const res = results?.[0]?.result as { numberOk: boolean; dateOk: boolean } | undefined;
@@ -816,34 +859,19 @@ async function fillDocumentInPage(tabId: number, series: string, number: string,
 }
 
 async function fillBirthdateInPage(tabId: number, birthDate: string): Promise<void> {
+  // lib-date-picker mask expects digits only, auto-inserts dots
+  const digits = birthDate.replace(/\D/g, '');
+
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
-    func: (date: string) => {
-      function setVal(el: HTMLInputElement, val: string): void {
-        el.focus();
-        el.select();
-        const ok = document.execCommand('insertText', false, val);
-        if (ok && el.value === val) { el.blur(); return; }
+    func: async (digitsStr: string, fullDate: string) => {
+      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype, 'value'
-        )?.set;
-        if (setter) { setter.call(el, val); } else { el.value = val; }
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        el.blur();
-      }
-
-      const visible = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])')
-      ).filter(i => { const r = i.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
-
-      // Find by name (Gosuslugi uses name="c_birth_date")
+      // Find date input by name or label
       let input: HTMLInputElement | null =
         document.querySelector<HTMLInputElement>('input[name*="birth"]');
 
-      // By label
       if (!input) {
         const labels = document.querySelectorAll('label');
         for (const label of labels) {
@@ -854,22 +882,63 @@ async function fillBirthdateInPage(tabId: number, birthDate: string): Promise<vo
         }
       }
 
-      // Fallback: first visible text input
       if (!input) {
+        const visible = Array.from(
+          document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])')
+        ).filter(i => { const r = i.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
         input = visible[0] ?? null;
       }
 
-      if (input) {
-        setVal(input, date);
-        return true;
+      if (!input) return { found: false, value: '' };
+
+      // Clear field first
+      input.focus();
+      input.select();
+      document.execCommand('delete');
+      await sleep(50);
+
+      // Type digits one by one — mask auto-inserts dots
+      for (const char of digitsStr) {
+        document.execCommand('insertText', false, char);
+        await sleep(30);
       }
-      return false;
+      await sleep(200);
+
+      // Trigger blur to finalize validation
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.blur();
+      await sleep(100);
+
+      // If mask didn't work, try full date with execCommand
+      if (input.value !== fullDate) {
+        input.focus();
+        input.select();
+        document.execCommand('delete');
+        await sleep(50);
+        document.execCommand('insertText', false, fullDate);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.blur();
+        await sleep(100);
+      }
+
+      // Last resort: native setter
+      if (input.value !== fullDate) {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, 'value'
+        )?.set;
+        if (setter) { setter.call(input, fullDate); } else { input.value = fullDate; }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.blur();
+      }
+
+      return { found: true, value: input.value };
     },
-    args: [birthDate],
+    args: [digits, birthDate],
   });
 
-  const found = results?.[0]?.result;
-  if (!found) throw new Error('fillBirthdate: input not found');
+  const res = results?.[0]?.result as { found: boolean; value: string } | undefined;
+  if (!res?.found) throw new Error('fillBirthdate: input not found');
 }
 
 async function clickButtonInPage(tabId: number, buttonText: string): Promise<boolean> {
