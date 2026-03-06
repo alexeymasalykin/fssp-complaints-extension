@@ -9,17 +9,15 @@
     "storage",
     "notifications",
     "tabs",
-    "scripting",
-    "downloads",
-    "alarms"
+    "scripting"
   ],
   "host_permissions": [
-    "https://www.gosuslugi.ru/655781/*"
+    "https://fssp.gov.ru/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.gosuslugi.ru/655781/*"],
-      "js": ["src/content/gosuslugi.ts"],
+      "matches": ["https://fssp.gov.ru/welcome/form/appeal*"],
+      "js": ["src/content/fssp.ts"],
       "run_at": "document_idle"
     }
   ],
@@ -38,11 +36,5 @@
     "16": "src/icons/icon16.png",
     "48": "src/icons/icon48.png",
     "128": "src/icons/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["src/results/result.html"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

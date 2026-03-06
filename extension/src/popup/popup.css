@@ -1,8 +1,8 @@
-/* RKL Check — Popup Styles
-   Design: Light Glassmorphism (Gosuslugi-inspired)
+/* FSSP Complaints — Popup Styles
+   Design: Light Glassmorphism
    Background: White-blue gradient
    Cards: Frosted white glass with backdrop-blur
-   Accents: Gosuslugi blue (#0369A1, #0EA5E9)
+   Accents: Blue (#0369A1, #0EA5E9)
    Font: Lexend (Google Fonts) */
 
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
@@ -448,6 +448,7 @@ body::after {
   margin: 16px 0;
 }
 
+.stats-grid--3 { grid-template-columns: repeat(3, 1fr); }
 .stats-grid--4 { grid-template-columns: repeat(4, 1fr); }
 
 .stat {
@@ -556,6 +557,17 @@ body::after {
   color: #0369A1;
   font-weight: 500;
   box-shadow: 0 2px 8px rgba(3, 105, 161, 0.08);
+}
+
+/* === Nav Buttons (prev/next) === */
+
+.nav-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-buttons .btn {
+  flex: 1;
 }
 
 /* === Actions === */

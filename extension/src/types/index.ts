@@ -1,73 +1,61 @@
-// Общие типы расширения RKL Check
+// Common types for FSSP Complaint extension
 
-// === Данные сотрудника ===
+// === Complaint data (one row from Excel) ===
 
-export interface Employee {
+export interface Complaint {
   index: number;
-  number: string;
-  issueDate: string;  // ДД.ММ.ГГГГ
-  birthDate: string;  // ДД.ММ.ГГГГ
-  series: string;
-  name: string;
+  orgName: string;
+  region: string;           // Субъект РФ (select value text)
+  municipality: string;     // Муниципальное образование
+  street: string;           // Улица
+  house: string;            // Номер дома
+  building: string;         // Номер корпуса
+  apartment: string;        // Номер квартиры
+  postalCode: string;       // Почтовый индекс
+  appealType: string;       // Вид обращения (select)
+  appealTopic: string;      // Тема обращения (select)
+  territorialBody: string;  // Территориальный орган (select)
+  fsspEmployee: string;     // Сотрудник ФССП
+  appealText: string;       // Текст обращения
 }
 
-// === Результат проверки ===
+// === Fill result ===
 
-export type CheckStatus = 'pending' | 'not_found' | 'found' | 'error';
+export type FillStatus = 'pending' | 'filled' | 'submitted' | 'error';
 
-export interface CheckResult {
-  status: CheckStatus;
-  found: boolean | null;
+export interface FillResult {
+  status: FillStatus;
   timestamp: string | null;
-  source: string | null;
   error: string | null;
 }
 
-// === Состояние очереди ===
+// === Queue state ===
 
-export type QueueState = 'idle' | 'ready' | 'running' | 'paused' | 'completed' | 'error';
+export type QueueState = 'idle' | 'ready' | 'filling' | 'completed';
 
 export interface QueueData {
-  employees: Employee[];
+  complaints: Complaint[];
   currentIndex: number;
-  results: CheckResult[];
+  results: FillResult[];
   state: QueueState;
-  startedAt: string | null;
-  pausedAt: string | null;
 }
 
-// === Настройки ===
+// === Settings ===
 
 export interface Settings {
-  delayBetweenChecks: number;
-  resultTimeout: number;
-  stepTimeout: number;
-  maxRetries: number;
-  autoDownload: boolean;
-  downloadSubfolder: string;
   notifyOnComplete: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  delayBetweenChecks: 10000,
-  resultTimeout: 120000,
-  stepTimeout: 10000,
-  maxRetries: 3,
-  autoDownload: false,
-  downloadSubfolder: 'RKL_Check',
   notifyOnComplete: true,
 };
 
-// === Шаги формы Госуслуг ===
-
-export type GosuslugiStep = 'intro' | 'document' | 'birthdate' | 'result' | 'rate_limited' | 'unknown';
-
-// === Статистика результатов ===
+// === Result stats ===
 
 export interface ResultStats {
   total: number;
-  notFound: number;
-  found: number;
+  filled: number;
+  submitted: number;
   error: number;
   pending: number;
 }

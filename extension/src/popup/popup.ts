@@ -1,29 +1,29 @@
-// Popup — управление интерфейсом расширения RKL Check
+// Popup — FSSP complaint form filler UI
 
-import type { Employee, CheckResult, ResultStats, QueueState, Settings } from '@/types';
+import type { Complaint, FillResult, ResultStats, QueueState, Settings } from '@/types';
 import type { PopupMessage, StatusUpdateMessage, StatusResponse, BaseResponse, SettingsResponse } from '@/lib/messages';
-import { parseExcelFile, validateEmployees, exportResultsToExcel } from '@/lib/excel';
+import { parseExcelFile, validateComplaints } from '@/lib/excel';
 
-// === Получение DOM-элементов ===
+// === DOM helpers ===
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
 const screens = {
   main: $('screen-main'),
   preview: $('screen-preview'),
-  progress: $('screen-progress'),
-  results: $('screen-results'),
+  filling: $('screen-filling'),
+  completed: $('screen-completed'),
   settings: $('screen-settings'),
 } as const;
 
-// === Состояние popup ===
+// === State ===
 
-let parsedEmployees: Employee[] = [];
+let parsedComplaints: Complaint[] = [];
 let lastStatus: StatusUpdateMessage | null = null;
 let port: chrome.runtime.Port | null = null;
 let settingsReturnScreen: keyof typeof screens = 'main';
 
-// === Инициализация ===
+// === Init ===
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -40,7 +40,7 @@ async function init(): Promise<void> {
   }
 }
 
-// === Port для real-time обновлений ===
+// === Port for real-time updates ===
 
 function connectPort(): void {
   port = chrome.runtime.connect({ name: 'popup' });
@@ -53,16 +53,14 @@ function connectPort(): void {
   port.onDisconnect.addListener(() => { port = null; });
 }
 
-// === Отправка сообщений в background ===
-
 function sendMessage<T extends BaseResponse>(message: PopupMessage): Promise<T> {
   return chrome.runtime.sendMessage(message);
 }
 
-// === Привязка событий ===
+// === Event binding ===
 
 function bindEvents(): void {
-  // Drag-drop зона
+  // Drop zone
   const dropZone = $('drop-zone');
   const fileInput = $('file-input') as HTMLInputElement;
 
@@ -84,25 +82,26 @@ function bindEvents(): void {
     fileInput.value = '';
   });
 
-  $('btn-open-gosuslugi').addEventListener('click', openGosuslugi);
+  $('btn-open-fssp').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://fssp.gov.ru/welcome/form/appeal' });
+  });
 
-  // Предпросмотр
-  $('btn-start-check').addEventListener('click', startCheck);
+  // Preview
+  $('btn-start').addEventListener('click', startSession);
   $('btn-cancel-preview').addEventListener('click', () => {
-    parsedEmployees = [];
+    parsedComplaints = [];
     showScreen('main');
   });
 
-  // Прогресс
-  $('btn-pause').addEventListener('click', () => sendMessage({ type: 'PAUSE_CHECK' }));
-  $('btn-resume').addEventListener('click', () => sendMessage({ type: 'RESUME_CHECK' }));
-  $('btn-stop').addEventListener('click', stopCheck);
+  // Filling
+  $('btn-fill').addEventListener('click', fillCurrent);
+  $('btn-submitted').addEventListener('click', markAndNext);
+  $('btn-prev').addEventListener('click', fillPrev);
+  $('btn-next').addEventListener('click', fillNext);
+  $('btn-finish').addEventListener('click', finishSession);
 
-  // Результаты
-  $('btn-open-results').addEventListener('click', openResultsPage);
-  $('btn-export').addEventListener('click', exportResults);
-  $('btn-retry-errors').addEventListener('click', retryErrors);
-  $('btn-new-check').addEventListener('click', newCheck);
+  // Completed
+  $('btn-new-session').addEventListener('click', newSession);
 
   // Settings
   document.querySelectorAll<HTMLButtonElement>('.btn-settings-open').forEach((btn) => {
@@ -110,21 +109,9 @@ function bindEvents(): void {
   });
   $('btn-settings-save').addEventListener('click', saveSettings);
   $('btn-settings-back').addEventListener('click', () => showScreen(settingsReturnScreen));
-
-  $('setting-auto-download').addEventListener('change', () => {
-    const checked = ($('setting-auto-download') as HTMLInputElement).checked;
-    $('setting-folder-row').classList.toggle('hidden', !checked);
-  });
-
-  $('setting-delay').addEventListener('input', () => {
-    const val = Number(($('setting-delay') as HTMLInputElement).value);
-    $('delay-value-hint').textContent = `${(val / 1000).toFixed(1)} сек`;
-    $('delay-warning').style.display = val < 10000 ? '' : 'none';
-  });
-
 }
 
-// === Переключение экранов ===
+// === Screen switching ===
 
 function showScreen(name: keyof typeof screens): void {
   Object.values(screens).forEach((s) => s.classList.add('hidden'));
@@ -137,30 +124,26 @@ function restoreScreen(status: StatusResponse): void {
       showScreen('main');
       break;
     case 'ready':
-      parsedEmployees = status.employees ?? [];
-      showPreview();
-      break;
-    case 'running':
-    case 'paused':
-      showScreen('progress');
-      updateProgress(status);
+    case 'filling':
+      parsedComplaints = status.complaints ?? [];
+      showScreen('filling');
+      updateFillingScreen(status);
       break;
     case 'completed':
-    case 'error':
-      showScreen('results');
-      updateResults(status);
+      showScreen('completed');
+      updateCompleted(status);
       break;
   }
 }
 
-// === Парсинг Excel ===
+// === Excel parsing ===
 
 function handleFile(file: File): void {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       const buffer = e.target?.result as ArrayBuffer;
-      parsedEmployees = parseExcelFile(buffer);
+      parsedComplaints = parseExcelFile(buffer);
       showPreview();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -170,15 +153,14 @@ function handleFile(file: File): void {
   reader.readAsArrayBuffer(file);
 }
 
-// === Предпросмотр ===
+// === Preview ===
 
 function showPreview(): void {
   showScreen('preview');
 
-  $('preview-count').textContent = String(parsedEmployees.length);
+  $('preview-count').textContent = String(parsedComplaints.length);
 
-  // Валидация
-  const errors = validateEmployees(parsedEmployees);
+  const errors = validateComplaints(parsedComplaints);
   const errorsEl = $('validation-errors');
   if (errors.length) {
     errorsEl.textContent = errors.join('; ');
@@ -187,107 +169,122 @@ function showPreview(): void {
     errorsEl.classList.add('hidden');
   }
 
-  // Таблица предпросмотра (первые 10 строк)
   const tbody = $('preview-table').querySelector('tbody')!;
   tbody.innerHTML = '';
-  const showCount = Math.min(parsedEmployees.length, 10);
+  const showCount = Math.min(parsedComplaints.length, 10);
 
   for (let i = 0; i < showCount; i++) {
-    const emp = parsedEmployees[i];
+    const c = parsedComplaints[i];
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${i + 1}</td>
-      <td title="${esc(emp.name)}">${esc(truncate(emp.name, 18))}</td>
-      <td>${esc(emp.series ? `${emp.series} ` : '')}${esc(emp.number)}</td>
-      <td>${esc(emp.issueDate)}</td>
-      <td>${esc(emp.birthDate)}</td>
+      <td title="${esc(c.orgName)}">${esc(truncate(c.orgName, 15))}</td>
+      <td title="${esc(c.territorialBody)}">${esc(truncate(c.territorialBody, 15))}</td>
+      <td title="${esc(c.appealText)}">${esc(truncate(c.appealText, 20))}</td>
     `;
     tbody.appendChild(tr);
   }
 
   const moreEl = $('preview-more');
-  if (parsedEmployees.length > showCount) {
-    moreEl.textContent = `и ещё ${parsedEmployees.length - showCount}...`;
+  if (parsedComplaints.length > showCount) {
+    moreEl.textContent = `и ещё ${parsedComplaints.length - showCount}...`;
     moreEl.classList.remove('hidden');
   } else {
     moreEl.classList.add('hidden');
   }
 }
 
-// === Управление проверкой ===
+// === Session management ===
 
-async function startCheck(): Promise<void> {
-  const tab = await findGosuslugiTab();
-  if (!tab) {
-    alert('Откройте страницу проверки РКЛ на Госуслугах (gosuslugi.ru/655781/1/form)');
-    return;
-  }
-
+async function startSession(): Promise<void> {
   const loadResult = await sendMessage<BaseResponse>({
-    type: 'LOAD_EMPLOYEES',
-    employees: parsedEmployees,
+    type: 'LOAD_COMPLAINTS',
+    complaints: parsedComplaints,
   });
   if (!loadResult?.ok) {
-    alert(`Ошибка загрузки данных: ${loadResult?.error ?? 'неизвестная ошибка'}`);
+    alert(`Ошибка загрузки: ${loadResult?.error ?? 'неизвестная ошибка'}`);
     return;
   }
-
-  const startResult = await sendMessage<BaseResponse>({
-    type: 'START_CHECK',
-    tabId: tab.id!,
-  });
-  if (!startResult?.ok) {
-    if (startResult?.error === 'no_valid_employees') {
-      alert('Нет строк для проверки — у всех сотрудников отсутствуют обязательные данные (номер, дата выдачи или дата рождения).');
-      showScreen('results');
-      return;
-    }
-    const err = startResult?.error ?? 'неизвестная ошибка';
-    if (/content script|not responding|connection/i.test(err)) {
-      alert('Не удалось подключиться к странице Госуслуг. Обновите вкладку (F5) и попробуйте снова.');
-    } else {
-      alert(`Ошибка запуска: ${err}`);
-    }
-    return;
-  }
-
-  showScreen('progress');
+  showScreen('filling');
 }
 
-async function stopCheck(): Promise<void> {
-  if (!confirm('Остановить проверку? Результаты будут сохранены.')) return;
-  await sendMessage({ type: 'STOP_CHECK' });
-}
-
-async function retryErrors(): Promise<void> {
-  const tab = await findGosuslugiTab();
+async function fillCurrent(): Promise<void> {
+  const tab = await findFsspTab();
   if (!tab) {
-    alert('Откройте страницу проверки РКЛ на Госуслугах');
+    alert('Откройте форму обращения на fssp.gov.ru');
     return;
   }
-  await sendMessage({ type: 'RETRY_ERRORS', tabId: tab.id! });
-  showScreen('progress');
+
+  $('fill-status').textContent = 'Заполняю форму...';
+  const result = await sendMessage<BaseResponse>({ type: 'FILL_CURRENT', tabId: tab.id! });
+
+  if (result?.ok) {
+    $('fill-status').textContent = 'Форма заполнена. Проверьте данные, введите капчу и нажмите «Подать обращение».';
+    $('fill-status').style.color = '#16A34A';
+  } else {
+    $('fill-status').textContent = `Ошибка: ${result?.error ?? 'неизвестная'}`;
+    $('fill-status').style.color = '#DC2626';
+  }
 }
 
-async function newCheck(): Promise<void> {
+async function markAndNext(): Promise<void> {
+  await sendMessage({ type: 'MARK_SUBMITTED' });
+
+  const tab = await findFsspTab();
+  if (!tab) {
+    alert('Откройте форму обращения на fssp.gov.ru');
+    return;
+  }
+
+  const result = await sendMessage<BaseResponse>({ type: 'FILL_NEXT', tabId: tab.id! });
+  if (!result?.ok && result?.error === 'Последняя жалоба в списке') {
+    await sendMessage({ type: 'CLEAR_SESSION' });
+    showScreen('completed');
+  }
+  $('fill-status').textContent = '';
+  $('fill-status').style.color = '';
+}
+
+async function fillNext(): Promise<void> {
+  const tab = await findFsspTab();
+  if (!tab) { alert('Откройте форму обращения на fssp.gov.ru'); return; }
+  $('fill-status').textContent = '';
+  $('fill-status').style.color = '';
+  await sendMessage<BaseResponse>({ type: 'FILL_NEXT', tabId: tab.id! });
+}
+
+async function fillPrev(): Promise<void> {
+  const tab = await findFsspTab();
+  if (!tab) { alert('Откройте форму обращения на fssp.gov.ru'); return; }
+  $('fill-status').textContent = '';
+  $('fill-status').style.color = '';
+  await sendMessage<BaseResponse>({ type: 'FILL_PREV', tabId: tab.id! });
+}
+
+async function finishSession(): Promise<void> {
   await sendMessage({ type: 'CLEAR_SESSION' });
-  parsedEmployees = [];
+  parsedComplaints = [];
   showScreen('main');
 }
 
-// === Обновление UI по статусу ===
+async function newSession(): Promise<void> {
+  await sendMessage({ type: 'CLEAR_SESSION' });
+  parsedComplaints = [];
+  showScreen('main');
+}
+
+// === UI updates ===
 
 function handleStatusUpdate(status: StatusUpdateMessage): void {
   switch (status.state) {
-    case 'running':
-    case 'paused':
-      showScreen('progress');
-      updateProgress(status);
+    case 'ready':
+    case 'filling':
+      showScreen('filling');
+      updateFillingScreen(status);
       break;
     case 'completed':
-    case 'error':
-      showScreen('results');
-      updateResults(status);
+      showScreen('completed');
+      updateCompleted(status);
       break;
   }
 }
@@ -296,67 +293,41 @@ interface StatusLike {
   state: QueueState;
   currentIndex: number;
   total: number;
-  results: CheckResult[];
-  employees: Employee[];
-  startedAt: string | null;
+  results: FillResult[];
+  complaints: Complaint[];
 }
 
-function updateProgress(status: StatusLike): void {
-  const { currentIndex, total, results, state, employees } = status;
-  const checked = results.filter((r) => r.status !== 'pending').length;
+function updateFillingScreen(status: StatusLike): void {
+  const { currentIndex, total, complaints } = status;
+  const num = currentIndex + 1;
 
-  const pct = total > 0 ? (checked / total) * 100 : 0;
+  $('current-num').textContent = String(num);
+  $('total-num').textContent = String(total);
+
+  const pct = total > 0 ? (num / total) * 100 : 0;
   $('progress-fill').style.width = `${pct}%`;
-  $('progress-current').textContent = String(checked);
-  $('progress-total').textContent = String(total);
 
-  const currentEmp = employees?.[currentIndex];
-  if (currentEmp) {
-    $('progress-current-employee').textContent =
-      state === 'running' ? `Проверяется: ${currentEmp.number}...` : 'На паузе';
+  const complaint = complaints[currentIndex];
+  if (complaint) {
+    $('info-org').textContent = complaint.orgName || '—';
+    $('info-territory').textContent = complaint.territorialBody || '—';
+    $('info-text').textContent = truncate(complaint.appealText || '—', 80);
   }
 
-  const stats = countResults(results);
-  $('stat-ok').textContent = String(stats.notFound);
-  $('stat-found').textContent = String(stats.found);
-  $('stat-error').textContent = String(stats.error);
-
-  // ETA
-  if (checked > 0 && state === 'running' && status.startedAt) {
-    const elapsed = Date.now() - new Date(status.startedAt).getTime();
-    const remaining = ((total - checked) * elapsed) / checked;
-    $('progress-eta').textContent = `~${formatDuration(remaining)}`;
-  } else {
-    $('progress-eta').textContent = '';
-  }
-
-  $('btn-pause').classList.toggle('hidden', state !== 'running');
-  $('btn-resume').classList.toggle('hidden', state !== 'paused');
+  ($('btn-prev') as HTMLButtonElement).disabled = currentIndex <= 0;
+  ($('btn-next') as HTMLButtonElement).disabled = currentIndex >= total - 1;
 }
 
-function updateResults(status: StatusLike): void {
-  const { results, employees } = status;
-  parsedEmployees = employees;
-
-  const stats = countResults(results);
-  $('result-total').textContent = String(results.length);
-  $('result-ok').textContent = String(stats.notFound);
-  $('result-found').textContent = String(stats.found);
+function updateCompleted(status: StatusLike): void {
+  const stats = countResults(status.results);
+  $('result-total').textContent = String(stats.total);
+  $('result-submitted').textContent = String(stats.submitted);
   $('result-errors').textContent = String(stats.error);
-  $('btn-retry-errors').classList.toggle('hidden', stats.error === 0);
 }
 
-// === Экспорт ===
-
-function exportResults(): void {
-  if (!lastStatus) return;
-  exportResultsToExcel(lastStatus.employees, lastStatus.results);
-}
-
-// === Настройки ===
+// === Settings ===
 
 async function openSettings(): Promise<void> {
-  // Remember current screen to return to
   for (const [name, el] of Object.entries(screens)) {
     if (!el.classList.contains('hidden')) {
       settingsReturnScreen = name as keyof typeof screens;
@@ -366,68 +337,40 @@ async function openSettings(): Promise<void> {
 
   const resp = await sendMessage<SettingsResponse>({ type: 'GET_SETTINGS' });
   if (resp?.ok) {
-    const s = resp.settings;
-    ($('setting-auto-download') as HTMLInputElement).checked = s.autoDownload;
-    ($('setting-notify') as HTMLInputElement).checked = s.notifyOnComplete;
-    ($('setting-download-folder') as HTMLInputElement).value = s.downloadSubfolder;
-    ($('setting-delay') as HTMLInputElement).value = String(s.delayBetweenChecks);
-    $('delay-value-hint').textContent = `${(s.delayBetweenChecks / 1000).toFixed(1)} сек`;
-    $('delay-warning').style.display = s.delayBetweenChecks < 10000 ? '' : 'none';
-    $('setting-folder-row').classList.toggle('hidden', !s.autoDownload);
+    ($('setting-notify') as HTMLInputElement).checked = resp.settings.notifyOnComplete;
   }
-
   showScreen('settings');
 }
 
 async function saveSettings(): Promise<void> {
-  const updated: Partial<Settings> = {
-    autoDownload: ($('setting-auto-download') as HTMLInputElement).checked,
+  const updated: Settings = {
     notifyOnComplete: ($('setting-notify') as HTMLInputElement).checked,
-    downloadSubfolder: ($('setting-download-folder') as HTMLInputElement).value.trim() || 'RKL_Check',
-    delayBetweenChecks: Number(($('setting-delay') as HTMLInputElement).value),
   };
-
-  await sendMessage({ type: 'SAVE_SETTINGS', settings: updated as Settings });
+  await sendMessage({ type: 'SAVE_SETTINGS', settings: updated });
   showScreen(settingsReturnScreen);
 }
 
-// === Навигация ===
+// === Navigation ===
 
-function openResultsPage(): void {
-  chrome.tabs.create({ url: chrome.runtime.getURL('src/results/result.html') });
-}
-
-function openGosuslugi(): void {
-  chrome.tabs.create({ url: 'https://www.gosuslugi.ru/655781/1/form' });
-}
-
-function findGosuslugiTab(): Promise<chrome.tabs.Tab | null> {
+function findFsspTab(): Promise<chrome.tabs.Tab | null> {
   return new Promise((resolve) => {
-    chrome.tabs.query({ url: 'https://www.gosuslugi.ru/655781/*' }, (tabs) => {
+    chrome.tabs.query({ url: 'https://fssp.gov.ru/*' }, (tabs) => {
       resolve(tabs?.length ? tabs[0] : null);
     });
   });
 }
 
-// === Утилиты ===
+// === Utils ===
 
-function countResults(results: CheckResult[]): ResultStats {
-  const stats: ResultStats = { total: results.length, notFound: 0, found: 0, error: 0, pending: 0 };
+function countResults(results: FillResult[]): ResultStats {
+  const stats: ResultStats = { total: results.length, filled: 0, submitted: 0, error: 0, pending: 0 };
   for (const r of results) {
-    if (r.status === 'not_found') stats.notFound++;
-    else if (r.status === 'found') stats.found++;
+    if (r.status === 'submitted') stats.submitted++;
+    else if (r.status === 'filled') stats.filled++;
     else if (r.status === 'error') stats.error++;
     else stats.pending++;
   }
   return stats;
-}
-
-function formatDuration(ms: number): string {
-  const sec = Math.round(ms / 1000);
-  if (sec < 60) return `${sec} сек`;
-  const min = Math.floor(sec / 60);
-  const rem = sec % 60;
-  return rem > 0 ? `${min} мин ${rem} сек` : `${min} мин`;
 }
 
 function truncate(str: string, maxLen: number): string {

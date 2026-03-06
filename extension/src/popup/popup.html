@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=400">
-  <title>РКЛ Check</title>
+  <title>ФССП Жалобы</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <!-- Экран 1: Главный (загрузка файла) -->
+  <!-- Screen 1: Main (file upload) -->
   <div id="screen-main" class="screen">
     <div class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </span>
-        РКЛ Check
+        ФССП Жалобы
       </div>
       <div class="info-bar">
         <button class="btn-icon btn-settings-open" title="Настройки">
@@ -32,34 +32,29 @@
       <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
     </div>
 
-    <button id="btn-open-gosuslugi" class="btn btn-outline btn-block">
+    <button id="btn-open-fssp" class="btn btn-outline btn-block">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      Открыть Госуслуги
+      Открыть форму ФССП
     </button>
 
     <div class="footer-hint">
-      <p>Авторизуйтесь на Госуслугах (подтверждённая учётная запись)</p>
-      <p class="footer-hint__security">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Данные сотрудников не покидают ваш браузер
-      </p>
-      <p class="footer-hint__version">v1.0 · <a href="mailto:bbk-it@mail.ru">bbk-it@mail.ru</a></p>
+      <p>Откройте форму обращения на fssp.gov.ru и загрузите Excel-файл</p>
     </div>
   </div>
 
-  <!-- Экран 3: Предпросмотр -->
+  <!-- Screen 2: Preview -->
   <div id="screen-preview" class="screen hidden">
     <div class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </span>
-        РКЛ Check
+        ФССП Жалобы
       </div>
     </div>
 
     <div class="info-line">
-      <span>Загружено: <strong id="preview-count">0</strong> сотрудников</span>
+      <span>Загружено: <strong id="preview-count">0</strong> обращений</span>
     </div>
 
     <div id="validation-errors" class="alert alert-warning hidden"></div>
@@ -69,10 +64,9 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>ФИО</th>
-            <th>Номер</th>
-            <th>Дата выдачи</th>
-            <th>ДР</th>
+            <th>Организация</th>
+            <th>Терр. орган</th>
+            <th>Текст</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -81,22 +75,22 @@
     <div id="preview-more" class="text-muted text-sm text-center hidden"></div>
 
     <div class="actions">
-      <button id="btn-start-check" class="btn btn-success btn-block">
+      <button id="btn-start" class="btn btn-success btn-block">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Начать проверку
+        Начать заполнение
       </button>
       <button id="btn-cancel-preview" class="btn btn-ghost btn-block">Отменить</button>
     </div>
   </div>
 
-  <!-- Экран 4: Процесс проверки -->
-  <div id="screen-progress" class="screen hidden">
+  <!-- Screen 3: Filling (main working screen) -->
+  <div id="screen-filling" class="screen hidden">
     <div class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </span>
-        РКЛ Check
+        ФССП Жалобы
       </div>
     </div>
 
@@ -105,72 +99,55 @@
         <div id="progress-fill" class="progress-bar__fill" style="width: 0%"></div>
       </div>
       <div class="progress-text">
-        Проверено: <strong id="progress-current">0</strong> из <strong id="progress-total">0</strong>
+        Обращение <strong id="current-num">1</strong> из <strong id="total-num">0</strong>
       </div>
     </div>
 
-    <div id="progress-current-employee" class="text-muted text-sm"></div>
-
-    <div class="stats-grid">
-      <div class="stat stat-ok">
-        <div class="stat__value" id="stat-ok">0</div>
-        <div class="stat__label">Не найдено</div>
-      </div>
-      <div class="stat stat-found">
-        <div class="stat__value" id="stat-found">0</div>
-        <div class="stat__label">В РКЛ</div>
-      </div>
-      <div class="stat stat-error">
-        <div class="stat__value" id="stat-error">0</div>
-        <div class="stat__label">Ошибки</div>
-      </div>
+    <div id="current-complaint-info" class="card" style="margin-bottom: 12px; text-align: left; padding: 14px;">
+      <div class="text-sm"><strong>Организация:</strong> <span id="info-org"></span></div>
+      <div class="text-sm"><strong>Терр. орган:</strong> <span id="info-territory"></span></div>
+      <div class="text-sm"><strong>Текст:</strong> <span id="info-text" class="text-muted"></span></div>
     </div>
 
-    <div id="progress-eta" class="text-muted text-sm text-center"></div>
+    <div id="fill-status" class="text-sm text-center" style="margin-bottom: 12px;"></div>
 
     <div class="actions">
-      <button id="btn-pause" class="btn btn-outline btn-block">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-        Пауза
+      <button id="btn-fill" class="btn btn-primary btn-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Заполнить форму
       </button>
-      <button id="btn-resume" class="btn btn-primary btn-block hidden">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Продолжить
+      <button id="btn-submitted" class="btn btn-success btn-block">
+        Отправлено — Следующая
       </button>
-      <button id="btn-stop" class="btn btn-danger btn-block">Остановить</button>
+      <div class="nav-buttons">
+        <button id="btn-prev" class="btn btn-outline" disabled>← Предыдущая</button>
+        <button id="btn-next" class="btn btn-outline">Следующая →</button>
+      </div>
+      <button id="btn-finish" class="btn btn-ghost btn-block">Завершить</button>
     </div>
   </div>
 
-  <!-- Экран 5: Результаты -->
-  <div id="screen-results" class="screen hidden">
+  <!-- Screen 4: Completed -->
+  <div id="screen-completed" class="screen hidden">
     <div class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </span>
-        РКЛ Check
-      </div>
-      <div class="info-bar">
-        <button class="btn-icon btn-settings-open" title="Настройки">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
+        ФССП Жалобы
       </div>
     </div>
 
     <div class="summary">
-      <div class="summary__title">Проверка завершена</div>
-      <div class="stats-grid stats-grid--4">
+      <div class="summary__title">Заполнение завершено</div>
+      <div class="stats-grid stats-grid--3">
         <div class="stat stat-total">
           <div class="stat__value" id="result-total">0</div>
           <div class="stat__label">Всего</div>
         </div>
         <div class="stat stat-ok">
-          <div class="stat__value" id="result-ok">0</div>
-          <div class="stat__label">Не найдено</div>
-        </div>
-        <div class="stat stat-found">
-          <div class="stat__value" id="result-found">0</div>
-          <div class="stat__label">В РКЛ</div>
+          <div class="stat__value" id="result-submitted">0</div>
+          <div class="stat__label">Отправлено</div>
         </div>
         <div class="stat stat-error">
           <div class="stat__value" id="result-errors">0</div>
@@ -180,54 +157,27 @@
     </div>
 
     <div class="actions">
-      <button id="btn-open-results" class="btn btn-primary btn-block">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Открыть полные результаты
-      </button>
-      <button id="btn-export" class="btn btn-outline btn-block">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Скачать отчёт (Excel)
-      </button>
-      <button id="btn-retry-errors" class="btn btn-outline btn-block hidden">Повторить ошибочные</button>
-      <button id="btn-new-check" class="btn btn-outline btn-block">
+      <button id="btn-new-session" class="btn btn-primary btn-block">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-        Новая проверка
+        Новая сессия
       </button>
     </div>
   </div>
 
-  <!-- Экран 6: Настройки -->
+  <!-- Screen 5: Settings -->
   <div id="screen-settings" class="screen hidden">
     <div class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 3l9 4.5v5c0 5-3.5 9.7-9 11-5.5-1.3-9-6-9-11v-5L12 3z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </span>
-        РКЛ Check
+        ФССП Жалобы
       </div>
     </div>
 
     <div class="settings-title">Настройки</div>
 
     <div class="settings-group">
-      <div class="settings-item">
-        <div class="settings-item__info">
-          <div class="settings-item__label">Авто-скачивание отчёта</div>
-          <div class="settings-item__desc">Скачивать Excel при завершении проверки</div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="setting-auto-download">
-          <span class="toggle__slider"></span>
-        </label>
-      </div>
-
-      <div id="setting-folder-row" class="settings-item settings-item--sub hidden">
-        <div class="settings-item__info">
-          <div class="settings-item__label">Папка в «Загрузки»</div>
-        </div>
-        <input type="text" id="setting-download-folder" class="settings-input" placeholder="RKL_Check" maxlength="50">
-      </div>
-
       <div class="settings-item">
         <div class="settings-item__info">
           <div class="settings-item__label">Уведомления</div>
@@ -237,18 +187,6 @@
           <input type="checkbox" id="setting-notify">
           <span class="toggle__slider"></span>
         </label>
-      </div>
-    </div>
-
-    <div class="settings-group">
-      <div class="settings-group__title">Таймауты</div>
-      <div class="settings-item">
-        <div class="settings-item__info">
-          <div class="settings-item__label">Задержка между проверками</div>
-          <div class="settings-item__desc" id="delay-value-hint">10.0 сек</div>
-          <div class="settings-item__warning" id="delay-warning" style="display:none;">При значении менее 10 сек Госуслуги могут ограничить частоту запросов</div>
-        </div>
-        <input type="range" id="setting-delay" class="settings-range" min="2000" max="15000" step="500" value="10000">
       </div>
     </div>
 

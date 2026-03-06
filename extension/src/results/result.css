@@ -1,5 +1,4 @@
-/* RKL Check — Results Page Styles
-   Design: Data-Dense Dashboard, Trust & Authority
+/* FSSP Complaints — Results Page Styles
    Palette: Navy/Slate (#0F172A, #0369A1, #F8FAFC)
    Font: Lexend (consistent with popup) */
 
@@ -487,15 +486,11 @@ body {
 }
 
 /* Column widths */
-.col-num     { width: 50px; text-align: center; }
-.col-name    { min-width: 180px; }
-.col-series  { width: 70px; }
-.col-number  { min-width: 130px; }
-.col-issue   { width: 110px; }
-.col-birth   { width: 120px; }
-.col-status  { width: 200px; }
-.col-time    { width: 80px; }
-.col-comment { min-width: 200px; }
+.col-num       { width: 50px; text-align: center; }
+.col-org       { min-width: 200px; }
+.col-territory { min-width: 180px; }
+.col-text      { min-width: 250px; }
+.col-status    { width: 160px; }
 
 .col-num td, td.col-num-cell {
   text-align: center;
