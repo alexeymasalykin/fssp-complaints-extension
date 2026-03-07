@@ -98,8 +98,50 @@ async function fillForm(complaint: Complaint): Promise<FillResponse> {
     }
   }
 
+  // Check the terms/consent checkbox
+  const checkbox = findCheckboxByText('условия использования сервиса');
+  if (checkbox && !checkbox.checked) {
+    checkbox.click();
+    console.log('[FSSP] Checked terms checkbox');
+    filled++;
+  }
+
   console.log('[FSSP] Fill complete. Filled:', filled, 'Skipped:', skipped);
   return { ok: true, filledFields: filled, skippedFields: skipped.length ? skipped : undefined };
+}
+
+// === Checkbox helpers ===
+
+function findCheckboxByText(text: string): HTMLInputElement | null {
+  const lower = text.toLowerCase();
+
+  // Strategy 1: find label containing text, get associated checkbox
+  const labels = document.querySelectorAll('label');
+  for (const label of labels) {
+    if (label.textContent?.toLowerCase().includes(lower)) {
+      const cb = label.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      if (cb) return cb;
+      // Check if label has 'for' pointing to checkbox
+      if (label.htmlFor) {
+        const el = document.getElementById(label.htmlFor) as HTMLInputElement;
+        if (el?.type === 'checkbox') return el;
+      }
+    }
+  }
+
+  // Strategy 2: find checkbox near text in parent
+  const allText = document.querySelectorAll('span, div, p, a');
+  for (const el of allText) {
+    if (el.textContent?.toLowerCase().includes(lower) && (el.textContent?.length ?? 0) < 200) {
+      const parent = el.closest('label, div, li');
+      if (parent) {
+        const cb = parent.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        if (cb) return cb;
+      }
+    }
+  }
+
+  return null;
 }
 
 // === PDF file attachment ===
