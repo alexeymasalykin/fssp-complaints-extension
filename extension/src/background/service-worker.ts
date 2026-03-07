@@ -243,11 +243,31 @@ function clearSession(): BaseResponse {
 
 // === Content script messaging ===
 
-function sendToContent(tabId: number, message: { type: string; complaint: Complaint }): Promise<FillResponse> {
+async function ensureContentScript(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+  } catch {
+    // Content script not injected (tab was open before install/update)
+    // Read content script path from manifest and inject programmatically
+    const manifest = chrome.runtime.getManifest();
+    const csFiles = manifest.content_scripts?.[0]?.js ?? [];
+    if (csFiles.length) {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: csFiles,
+      });
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+}
+
+async function sendToContent(tabId: number, message: { type: string; complaint: Complaint }): Promise<FillResponse> {
+  await ensureContentScript(tabId);
+
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error('Content script не отвечает. Обновите страницу ФССП (F5).'));
-    }, 10000);
+    }, 60000);
 
     chrome.tabs.sendMessage(tabId, message, (response: FillResponse | undefined) => {
       clearTimeout(timer);

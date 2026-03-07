@@ -15,6 +15,7 @@ export interface Complaint {
   appealType: string;       // Вид обращения (select)
   appealTopic: string;      // Тема обращения (select)
   territorialBody: string;  // Территориальный орган (select)
+  structuralUnit: string;   // Структурное подразделение ФССП (select)
   fsspEmployee: string;     // Сотрудник ФССП
   appealText: string;       // Текст обращения
 }

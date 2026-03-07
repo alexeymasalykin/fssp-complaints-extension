@@ -17,6 +17,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   appealType: ['вид обращения', 'вид', 'appeal type'],
   appealTopic: ['тема обращения', 'тема', 'appeal topic'],
   territorialBody: ['территориальный орган', 'территориальный', 'орган', 'territorial'],
+  structuralUnit: ['структурное подразделение', 'подразделение', 'структурное подразделение фссп', 'структурное подразделение фссп россии', 'structural unit'],
   fsspEmployee: ['сотрудник фссп', 'сотрудник', 'employee'],
   appealText: ['текст обращения', 'текст', 'обращение', 'appeal text', 'text'],
 };
@@ -75,6 +76,7 @@ function mapColumns(rows: Record<string, unknown>[]): Complaint[] {
     appealType: str(row[mapping.appealType!]),
     appealTopic: str(row[mapping.appealTopic!]),
     territorialBody: str(row[mapping.territorialBody!]),
+    structuralUnit: str(row[mapping.structuralUnit!]),
     fsspEmployee: str(row[mapping.fsspEmployee!]),
     appealText: str(row[mapping.appealText!]),
   }));
