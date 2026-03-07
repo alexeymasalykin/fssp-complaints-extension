@@ -4,6 +4,7 @@
 
 import type { Complaint } from '@/types';
 import type { BackgroundToContentMessage, BaseResponse, FillResponse } from '@/lib/messages';
+import { generatePdf } from '@/lib/pdf';
 
 // Notify background that content script is ready
 chrome.runtime.sendMessage({ type: 'CONTENT_READY' }).catch(() => {});
@@ -86,8 +87,105 @@ async function fillForm(complaint: Complaint): Promise<FillResponse> {
     filled += await fillVueSelect('Структурное подразделение ФССП России', complaint.structuralUnit, skipped);
   }
 
+  // Attach PDF with appeal text
+  if (complaint.appealText) {
+    const attached = await attachPdfFile(complaint.appealText, complaint.index);
+    if (attached) {
+      filled++;
+      console.log('[FSSP] PDF attached successfully');
+    } else {
+      skipped.push('Прикрепить документ (не удалось загрузить PDF)');
+    }
+  }
+
   console.log('[FSSP] Fill complete. Filled:', filled, 'Skipped:', skipped);
   return { ok: true, filledFields: filled, skippedFields: skipped.length ? skipped : undefined };
+}
+
+// === PDF file attachment ===
+
+async function attachPdfFile(appealText: string, index: number): Promise<boolean> {
+  const file = generatePdf(appealText, `обращение_${index + 1}.pdf`);
+  console.log(`[FSSP] Generated PDF: ${file.name}, ${file.size} bytes`);
+
+  // Find file input on the page
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  if (!fileInput) {
+    console.log('[FSSP] File input not found on page');
+    // Try drop zone as fallback
+    return attachViaDropZone(file);
+  }
+
+  // Use DataTransfer to set file on input
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(500);
+
+    // Verify file was accepted
+    if (fileInput.files && fileInput.files.length > 0) {
+      return true;
+    }
+  } catch (e) {
+    console.log('[FSSP] DataTransfer failed:', e);
+  }
+
+  // Fallback: drop event on upload zone
+  return attachViaDropZone(file);
+}
+
+async function attachViaDropZone(file: File): Promise<boolean> {
+  // Find drop zone by text content
+  const dropZone = findDropZone();
+  if (!dropZone) {
+    console.log('[FSSP] Drop zone not found');
+    return false;
+  }
+
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+
+    const dropEvent = new DragEvent('drop', {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: dt,
+    });
+
+    dropZone.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: dt }));
+    dropZone.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    dropZone.dispatchEvent(dropEvent);
+
+    await sleep(1000);
+    console.log('[FSSP] Drop event dispatched on upload zone');
+    return true;
+  } catch (e) {
+    console.log('[FSSP] Drop event failed:', e);
+    return false;
+  }
+}
+
+function findDropZone(): HTMLElement | null {
+  // Look for upload area by typical text/class patterns
+  const candidates = document.querySelectorAll('[class*="upload"], [class*="drop"], [class*="file"], [class*="attach"]');
+  for (const el of candidates) {
+    if (el.textContent?.includes('Перетащите') || el.textContent?.includes('загрузите')) {
+      return el as HTMLElement;
+    }
+  }
+
+  // Search by text content
+  const allDivs = document.querySelectorAll('div, section');
+  for (const el of allDivs) {
+    const text = el.textContent?.trim() ?? '';
+    if (text.includes('Перетащите файлы') && text.length < 300) {
+      return el as HTMLElement;
+    }
+  }
+
+  return null;
 }
 
 // === Text field helpers ===
