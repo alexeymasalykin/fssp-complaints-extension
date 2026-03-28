@@ -236,13 +236,17 @@ async function markAndNext(): Promise<void> {
     return;
   }
 
+  $('fill-status').textContent = 'Переход к следующей жалобе...';
+  $('fill-status').style.color = '';
+
   const result = await sendMessage<BaseResponse>({ type: 'FILL_NEXT', tabId: tab.id! });
   if (!result?.ok && result?.error === 'Последняя жалоба в списке') {
     await sendMessage({ type: 'CLEAR_SESSION' });
     showScreen('completed');
+  } else if (result?.ok) {
+    $('fill-status').textContent = 'Форма заполнена. Проверьте данные, введите капчу и нажмите «Подать обращение».';
+    $('fill-status').style.color = '#16A34A';
   }
-  $('fill-status').textContent = '';
-  $('fill-status').style.color = '';
 }
 
 async function fillNext(): Promise<void> {

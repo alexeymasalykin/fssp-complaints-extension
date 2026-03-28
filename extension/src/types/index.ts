@@ -7,6 +7,7 @@ export interface Complaint {
   orgName: string;
   region: string;           // Субъект РФ (select value text)
   municipality: string;     // Муниципальное образование
+  locality: string;         // Населенный пункт
   street: string;           // Улица
   house: string;            // Номер дома
   building: string;         // Номер корпуса
