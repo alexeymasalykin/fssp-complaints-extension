@@ -1,5 +1,7 @@
 # ФССП Жалобы — Chrome-расширение
 
+[![CI](https://github.com/alexeymasalykin/fssp-complaints-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/alexeymasalykin/fssp-complaints-extension/actions/workflows/ci.yml)
+
 Chrome-расширение для автоматизации массовой подачи обращений (жалоб) в ФССП через сайт [fssp.gov.ru](https://fssp.gov.ru).
 
 Загружает данные из Excel-файла и последовательно заполняет форму обращения на сайте ФССП, включая каскадные выпадающие списки (vue-select).
