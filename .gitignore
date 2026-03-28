@@ -10,4 +10,5 @@ BEFORE_GITHUB.md
 TODO.md
 *.zip
 *.pdf
+*.xlsx
 test_*
