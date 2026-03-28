@@ -4,3 +4,10 @@ dist/
 .DS_Store
 .env
 .env.*
+CLAUDE.md
+.claude/
+BEFORE_GITHUB.md
+TODO.md
+*.zip
+*.pdf
+test_*

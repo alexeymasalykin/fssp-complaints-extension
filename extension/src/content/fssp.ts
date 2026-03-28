@@ -5,18 +5,22 @@
 import type { Complaint } from '@/types';
 import type { BackgroundToContentMessage, BaseResponse, FillResponse } from '@/lib/messages';
 import { generatePdf } from '@/lib/pdf';
+import { findBestMatch } from '@/lib/matching';
 
 // Notify background that content script is ready
 chrome.runtime.sendMessage({ type: 'CONTENT_READY' }).catch(() => {});
 
 // === Form filling ===
 
-// Track elements already used to avoid filling the same input/select twice
-const usedElements = new WeakSet<Element>();
+// Track elements already used to avoid filling the same input/select twice within a single fill
+let usedElements = new WeakSet<Element>();
 
 async function fillForm(complaint: Complaint): Promise<FillResponse> {
   const skipped: string[] = [];
   let filled = 0;
+
+  // Reset tracked elements for fresh fill
+  usedElements = new WeakSet<Element>();
 
   console.log('[FSSP] Starting form fill. DOM snapshot:', debugDOM());
 
@@ -47,6 +51,11 @@ async function fillForm(complaint: Complaint): Promise<FillResponse> {
 
   if (complaint.municipality) {
     filled += await fillVueSelect('Муниципальное образование', complaint.municipality, skipped);
+    await sleep(1000);
+  }
+
+  if (complaint.locality) {
+    filled += await fillVueSelect('Населенный пункт', complaint.locality, skipped);
     await sleep(1000);
   }
 
@@ -147,7 +156,7 @@ function findCheckboxByText(text: string): HTMLInputElement | null {
 // === PDF file attachment ===
 
 async function attachPdfFile(appealText: string, index: number): Promise<boolean> {
-  const file = generatePdf(appealText, `обращение_${index + 1}.pdf`);
+  const file = await generatePdf(appealText, `обращение_${index + 1}.pdf`);
   console.log(`[FSSP] Generated PDF: ${file.name}, ${file.size} bytes`);
 
   // Find file input on the page
@@ -444,8 +453,6 @@ async function typeAndSelectVue(
   const optTexts = Array.from(options).map(o => o.textContent?.trim()).filter(Boolean);
   console.log(`[FSSP] Options for "${labelText}": ${JSON.stringify(optTexts.slice(0, 10))}`);
 
-  const normalized = target.trim().toLowerCase();
-
   // Helper: select option and close dropdown
   const selectOption = async (opt: HTMLElement): Promise<true> => {
     // vue-select selects on mousedown on li.vs__dropdown-option
@@ -472,68 +479,11 @@ async function typeAndSelectVue(
     return true;
   };
 
-  // Exact match first
-  for (const opt of options) {
-    if (opt.textContent?.trim().toLowerCase() === normalized) {
-      return selectOption(opt as HTMLElement);
-    }
-  }
-
-  // Partial match — prefer shortest option text (closest to search)
-  let bestPartial: HTMLElement | null = null;
-  let bestPartialLen = Infinity;
-  for (const opt of options) {
-    const text = opt.textContent?.trim().toLowerCase() ?? '';
-    if (!text || text === 'нет данных' || text.length > 200) continue;
-    if (text.includes(normalized) || normalized.includes(text)) {
-      if (text.length < bestPartialLen) {
-        bestPartialLen = text.length;
-        bestPartial = opt as HTMLElement;
-      }
-    }
-  }
-  if (bestPartial) {
-    console.log(`[FSSP] Partial match: "${bestPartial.textContent?.trim()}" (len=${bestPartialLen})`);
-    return selectOption(bestPartial);
-  }
-
-  // Word stem overlap — handles Russian declension (москва/москве, действия/действий)
-  // Stem = first max(3, len-2) characters of each word
-  const stem = (w: string) => w.length <= 4 ? w : w.slice(0, w.length - 2);
-  const searchWords = normalized.split(/[\s\-()]+/).filter(w => w.length >= 3);
-  const searchStems = searchWords.map(stem);
-
-  if (searchStems.length >= 1) {
-    let bestOpt: HTMLElement | null = null;
-    let bestScore = 0;
-    for (const opt of options) {
-      const text = opt.textContent?.trim().toLowerCase() ?? '';
-      if (!text) continue;
-      const optWords = text.split(/[\s\-()]+/).filter(w => w.length >= 3);
-      const optStems = optWords.map(stem);
-
-      // How many search stems appear in option stems
-      const matchCount = searchStems.filter(ss => optStems.some(os => os === ss || os.includes(ss) || ss.includes(os))).length;
-      const score = matchCount / searchStems.length;
-      if (score > bestScore && score >= 0.4) {
-        bestScore = score;
-        bestOpt = opt as HTMLElement;
-      }
-    }
-    if (bestOpt) {
-      console.log(`[FSSP] Stem match (${Math.round(bestScore * 100)}%): "${bestOpt.textContent?.trim()}"`);
-      return selectOption(bestOpt);
-    }
-  }
-
-  // Last resort: click first non-empty option if only one real option exists
-  const realOptions = options.filter(o => {
-    const t = o.textContent?.trim().toLowerCase() ?? '';
-    return t && t !== 'нет данных' && t !== 'loading';
-  });
-  if (realOptions.length === 1) {
-    console.log(`[FSSP] Single option fallback: "${realOptions[0].textContent?.trim()}"`);
-    return selectOption(realOptions[0] as HTMLElement);
+  // Find best match using extracted matching logic
+  const match = findBestMatch(target, optTexts as string[]);
+  if (match) {
+    console.log(`[FSSP] Matched "${labelText}" via ${match.strategy}${match.score ? ` (${Math.round(match.score * 100)}%)` : ''}: "${optTexts[match.index]}"`);
+    return selectOption(options[match.index] as HTMLElement);
   }
 
   return false;

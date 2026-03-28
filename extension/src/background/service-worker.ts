@@ -1,8 +1,7 @@
 // Background Service Worker — FSSP complaint form filler
 // Simple manual flow: load complaints → fill current → next/prev
 
-import type { Complaint, FillResult, QueueData, Settings } from '@/types';
-import { DEFAULT_SETTINGS } from '@/types';
+import type { Complaint, QueueData, Settings } from '@/types';
 import type {
   IncomingMessage,
   BaseResponse,
@@ -11,15 +10,23 @@ import type {
   FillResponse,
   StatusUpdateMessage,
 } from '@/lib/messages';
+import {
+  createEmptyQueue,
+  loadComplaints as queueLoad,
+  markFilled,
+  markError,
+  markSubmitted as queueMarkSubmitted,
+  moveNext,
+  movePrev,
+  canFill,
+  buildStatusUpdate as queueBuildStatus,
+  mergeSettings,
+  DEFAULT_SETTINGS,
+} from '@/lib/queue';
 
 // === State ===
 
-let queue: QueueData = {
-  complaints: [],
-  currentIndex: 0,
-  results: [],
-  state: 'idle',
-};
+let queue: QueueData = createEmptyQueue();
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let popupPorts: chrome.runtime.Port[] = [];
@@ -68,15 +75,7 @@ function notifyPopup(): void {
 }
 
 function buildStatusUpdate(): StatusUpdateMessage {
-  return {
-    type: 'STATUS_UPDATE',
-    state: queue.state,
-    currentIndex: queue.currentIndex,
-    total: queue.complaints.length,
-    results: queue.results,
-    complaints: queue.complaints,
-    settings,
-  };
+  return queueBuildStatus(queue, settings);
 }
 
 // === Message handling ===
@@ -122,7 +121,7 @@ async function handleMessage(message: IncomingMessage): Promise<BaseResponse | S
       return { ok: true, settings } as SettingsResponse;
 
     case 'SAVE_SETTINGS': {
-      settings = { ...settings, ...message.settings };
+      settings = mergeSettings(settings, message.settings);
       await chrome.storage.local.set({ settings });
       notifyPopup();
       return { ok: true };
@@ -139,25 +138,51 @@ async function handleMessage(message: IncomingMessage): Promise<BaseResponse | S
 // === Complaint management ===
 
 function loadComplaints(complaints: Complaint[]): BaseResponse {
-  queue.complaints = complaints;
-  queue.currentIndex = 0;
-  queue.results = complaints.map((): FillResult => ({
-    status: 'pending',
-    timestamp: null,
-    error: null,
-  }));
-  queue.state = 'ready';
+  queue = queueLoad(queue, complaints);
   saveQueue();
   notifyPopup();
   return { ok: true };
 }
 
-async function fillCurrent(tabId: number): Promise<BaseResponse> {
-  if (queue.state !== 'ready' && queue.state !== 'filling') {
-    return { ok: false, error: `Cannot fill from state: ${queue.state}` };
+const FSSP_FORM_URL = 'https://fssp.gov.ru/welcome/form/appeal';
+
+async function navigateToForm(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId);
+  const url = tab.url ?? '';
+
+  // Already on the form page — no need to navigate
+  if (url.includes('/welcome/form/appeal') || url.includes('/appeal')) {
+    return;
   }
-  if (!queue.complaints.length) {
-    return { ok: false, error: 'No complaints loaded' };
+
+  // Navigate to form and wait for page load
+  await chrome.tabs.update(tabId, { url: FSSP_FORM_URL });
+  await waitForTabLoad(tabId);
+  // Extra wait for Vue.js SPA to initialize
+  await new Promise(r => setTimeout(r, 2000));
+}
+
+function waitForTabLoad(tabId: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 15000);
+
+    const listener = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        clearTimeout(timeout);
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function fillCurrent(tabId: number): Promise<BaseResponse> {
+  if (!canFill(queue)) {
+    return { ok: false, error: `Cannot fill from state: ${queue.state}` };
   }
 
   const complaint = queue.complaints[queue.currentIndex];
@@ -166,28 +191,21 @@ async function fillCurrent(tabId: number): Promise<BaseResponse> {
   }
 
   try {
+    await navigateToForm(tabId);
+
     const response = await sendToContent(tabId, {
       type: 'FILL_FORM',
       complaint,
     });
 
-    queue.state = 'filling';
-    queue.results[queue.currentIndex] = {
-      status: 'filled',
-      timestamp: new Date().toISOString(),
-      error: null,
-    };
+    queue = markFilled(queue, queue.currentIndex);
     await saveQueue();
     notifyPopup();
 
     return response;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    queue.results[queue.currentIndex] = {
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      error: errMsg,
-    };
+    queue = markError(queue, queue.currentIndex, errMsg);
     await saveQueue();
     notifyPopup();
     return { ok: false, error: errMsg };
@@ -195,47 +213,32 @@ async function fillCurrent(tabId: number): Promise<BaseResponse> {
 }
 
 async function fillNext(tabId: number): Promise<BaseResponse> {
-  if (queue.currentIndex < queue.complaints.length - 1) {
-    queue.currentIndex++;
-    await saveQueue();
-    notifyPopup();
-    return fillCurrent(tabId);
-  }
-  return { ok: false, error: 'Последняя жалоба в списке' };
+  const next = moveNext(queue);
+  if (!next) return { ok: false, error: 'Последняя жалоба в списке' };
+  queue = next;
+  await saveQueue();
+  notifyPopup();
+  return fillCurrent(tabId);
 }
 
 async function fillPrev(tabId: number): Promise<BaseResponse> {
-  if (queue.currentIndex > 0) {
-    queue.currentIndex--;
-    await saveQueue();
-    notifyPopup();
-    return fillCurrent(tabId);
-  }
-  return { ok: false, error: 'Первая жалоба в списке' };
+  const prev = movePrev(queue);
+  if (!prev) return { ok: false, error: 'Первая жалоба в списке' };
+  queue = prev;
+  await saveQueue();
+  notifyPopup();
+  return fillCurrent(tabId);
 }
 
 function markSubmitted(): BaseResponse {
-  if (queue.currentIndex < queue.results.length) {
-    queue.results[queue.currentIndex] = {
-      status: 'submitted',
-      timestamp: new Date().toISOString(),
-      error: null,
-    };
-
-    // Check if all done
-    const allDone = queue.results.every(r => r.status === 'submitted' || r.status === 'error');
-    if (allDone) {
-      queue.state = 'completed';
-    }
-
-    saveQueue();
-    notifyPopup();
-  }
+  queue = queueMarkSubmitted(queue);
+  saveQueue();
+  notifyPopup();
   return { ok: true };
 }
 
 function clearSession(): BaseResponse {
-  queue = { complaints: [], currentIndex: 0, results: [], state: 'idle' };
+  queue = createEmptyQueue();
   saveQueue();
   notifyPopup();
   return { ok: true };

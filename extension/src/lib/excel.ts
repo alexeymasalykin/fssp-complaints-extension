@@ -9,6 +9,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   orgName: ['организация', 'наименование организации', 'наименование', 'org', 'company'],
   region: ['субъект рф', 'субъект', 'регион', 'region'],
   municipality: ['муниципальное образование', 'муниципалитет', 'municipality'],
+  locality: ['населенный пункт', 'населённый пункт', 'нас. пункт', 'locality'],
   street: ['улица', 'street'],
   house: ['дом', 'номер дома', 'house'],
   building: ['корпус', 'номер корпуса', 'building'],
@@ -63,11 +64,19 @@ function mapColumns(rows: Record<string, unknown>[]): Complaint[] {
     return [];
   }
 
-  return rows.map((row, idx) => ({
+  return rows
+    .filter((row) => {
+      // Skip empty rows (no org name AND no appeal text)
+      const org = str(row[mapping.orgName!]);
+      const text = str(row[mapping.appealText!]);
+      return org !== '' || text !== '';
+    })
+    .map((row, idx) => ({
     index: idx,
     orgName: str(row[mapping.orgName!]),
     region: str(row[mapping.region!]),
     municipality: str(row[mapping.municipality!]),
+    locality: str(row[mapping.locality!]),
     street: str(row[mapping.street!]),
     house: str(row[mapping.house!]),
     building: str(row[mapping.building!]),
